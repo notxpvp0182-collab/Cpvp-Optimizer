@@ -4,6 +4,7 @@
   "package": "com.ahmed.cpvpoptimizer.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ClientPlayerInteractionManagerAccessor",
     "MinecraftClientMixin"
   ],
   "injectors": {

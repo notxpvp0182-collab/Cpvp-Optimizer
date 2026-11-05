@@ -22,13 +22,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/**
- * Narrowly-scoped, high-responsiveness Mixin into MinecraftClient:
- * 1. Eliminates the 4-tick itemUseCooldown bottleneck for Block Placement, Respawn Anchors,
- *    Glowstone charging, End Crystals, and XP Bottles when the corresponding modules are enabled.
- * 2. Immediately synchronizes hotbar slot switches before item-use or attack dispatch.
- * 3. Clears the 10-tick client miss-swing attack lock when LeftClickOptimizer is enabled.
- */
 @Mixin(MinecraftClient.class)
 public abstract class MinecraftClientMixin {
 
@@ -62,21 +55,39 @@ public abstract class MinecraftClientMixin {
         CPVPOptimizerClient mod = CPVPOptimizerClient.getInstance();
         if (mod == null) return;
 
-        // Instant Hotbar Slot Sync + Clear stale use cooldown on slot switch
+        ClientPlayerInteractionManagerAccessor imAccessor = (ClientPlayerInteractionManagerAccessor) this.interactionManager;
+
+        // 1. Instant Hotbar Slot Sync + Clear stale use cooldown on slot switch
         int currentSlot = this.player.getInventory().getSelectedSlot();
         if (mod.getHotbarOptimizer().checkSlotChanged(currentSlot)) {
             if (mod.getHotbarOptimizer().isInstantSlotSyncEnabled()) {
-                this.interactionManager.syncSelectedSlot();
+                imAccessor.cpvp$syncSelectedSlot();
             }
-            if (mod.getHotbarOptimizer().shouldResetUseDelayOnSwitch() && this.itemUseCooldown > 0) {
+            if (mod.getHotbarOptimizer().shouldResetUseDelayOnSwitch()) {
                 this.itemUseCooldown = 0;
+                this.attackCooldown = 0;
             }
         }
 
-        // Clear left-click miss penalty so crystal/target attacks respond immediately
-        if (this.attackCooldown > 0 && mod.getLeftClickOptimizer().shouldClearMissPenalty()) {
+        // 2. Clear left-click miss lock & block breaking cooldown so crystal/block hits never stall
+        if (mod.getLeftClickOptimizer().shouldClearMissPenalty()) {
+            if (this.attackCooldown > 0) {
+                this.attackCooldown = 0;
+                mod.getLeftClickOptimizer().recordClearedMissPenalty();
+            }
+            if (imAccessor.cpvp$getBlockBreakingCooldown() > 0) {
+                imAccessor.cpvp$setBlockBreakingCooldown(0);
+            }
+        }
+    }
+
+    @Inject(method = "doAttack", at = @At("HEAD"))
+    private void cpvpOptimizer$onBeforeDoAttack(CallbackInfoReturnable<Boolean> cir) {
+        if (!OptimizerConfig.getInstance().isMasterEnabled() || this.interactionManager == null) return;
+        CPVPOptimizerClient mod = CPVPOptimizerClient.getInstance();
+        if (mod != null && mod.getLeftClickOptimizer().shouldClearMissPenalty()) {
             this.attackCooldown = 0;
-            mod.getLeftClickOptimizer().recordClearedMissPenalty();
+            ((ClientPlayerInteractionManagerAccessor) this.interactionManager).cpvp$syncSelectedSlot();
         }
     }
 
@@ -97,8 +108,7 @@ public abstract class MinecraftClientMixin {
         }
         CPVPOptimizerClient mod = CPVPOptimizerClient.getInstance();
         if (mod != null && mod.getHotbarOptimizer().isInstantSlotSyncEnabled()) {
-            // Ensure server knows the exact hotbar slot BEFORE sending any block-place / anchor packet
-            this.interactionManager.syncSelectedSlot();
+            ((ClientPlayerInteractionManagerAccessor) this.interactionManager).cpvp$syncSelectedSlot();
         }
     }
 
@@ -112,7 +122,7 @@ public abstract class MinecraftClientMixin {
 
         ItemStack mainHand = this.player.getMainHandStack();
 
-        // 1. Respawn Anchor Target Interaction (Charging or Detonating)
+        // 1. Respawn Anchor Target Interaction (Charging with Glowstone or Detonating with any item/hand)
         if (this.crosshairTarget instanceof BlockHitResult blockHit && this.crosshairTarget.getType() == HitResult.Type.BLOCK) {
             BlockState targetState = this.world.getBlockState(blockHit.getBlockPos());
             if (targetState.isOf(Blocks.RESPAWN_ANCHOR)) {
@@ -129,21 +139,21 @@ public abstract class MinecraftClientMixin {
             }
         }
 
-        // 2. End Crystal Placement
+        // 2. End Crystal Placement (Zero Delay)
         if (mainHand.isOf(Items.END_CRYSTAL) && mod.getCrystalOptimizer().isZeroCrystalPlaceDelayEnabled()) {
             this.itemUseCooldown = 0;
             mod.getCrystalOptimizer().recordFastCrystalPlace();
             return;
         }
 
-        // 3. Experience Bottle Throw
+        // 3. Experience Bottle Throw (Zero Delay)
         if (mainHand.isOf(Items.EXPERIENCE_BOTTLE) && mod.getXpOptimizer().isFastXpThrowEnabled()) {
             this.itemUseCooldown = Math.min(this.itemUseCooldown, mod.getXpOptimizer().getXpUseDelayTicks());
             mod.getXpOptimizer().recordFastThrow();
             return;
         }
 
-        // 4. Block Placement (Obsidian, Respawn Anchor item, Glowstone block, etc.)
+        // 4. Any Block Placement (Obsidian, Respawn Anchor, Glowstone, Cobweb, etc.)
         if (mainHand.getItem() instanceof BlockItem) {
             if (mainHand.isOf(Items.RESPAWN_ANCHOR) && mod.getAnchorOptimizer().isInstantAnchorInteractEnabled()) {
                 this.itemUseCooldown = 0;
@@ -157,7 +167,7 @@ public abstract class MinecraftClientMixin {
             }
         }
 
-        // 5. General Right-Click Optimizer
+        // 5. All Other Right-Click / Throwables (Pearls, Potions, Snowballs, Offhand items, etc.)
         if (mod.getRightClickOptimizer().isImmediateUseEnabled()) {
             this.itemUseCooldown = Math.min(this.itemUseCooldown, mod.getRightClickOptimizer().getItemUseCooldownTicks());
             mod.getRightClickOptimizer().recordFastRightClick();
