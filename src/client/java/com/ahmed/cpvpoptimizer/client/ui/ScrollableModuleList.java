@@ -9,16 +9,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * Vanilla-styled scrollable module list with scissor clipping, smooth wheel scrolling,
- * draggable scrollbar thumb, clickable scrollbar track, and preserved scroll offset.
- */
 public final class ScrollableModuleList {
-    private static final int ROW_HEIGHT = 34;
-    private static final int ROW_SPACING = 4;
+    private static final int ROW_HEIGHT = 24;
+    private static final int ROW_SPACING = 3;
 
     private final List<ModuleButton> buttons = new ArrayList<>();
     private final Scrollbar scrollbar = new Scrollbar();
+    private OptimizerModule selectedModule;
 
     private int x;
     private int y;
@@ -34,19 +31,21 @@ public final class ScrollableModuleList {
         }
     }
 
+    public void setSelectedModule(OptimizerModule selectedModule) {
+        this.selectedModule = selectedModule;
+    }
+
     public void setDimensions(int x, int y, int width, int height) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
-        int rowAreaWidth = getRowWidth();
-        int scrollbarX = x + (width - rowAreaWidth) / 2 + rowAreaWidth + 6;
-        this.scrollbar.setBounds(scrollbarX, y + 2, 6, Math.max(0, height - 4));
+        this.scrollbar.setBounds(x + width - 6, y + 2, 4, Math.max(0, height - 4));
         clampScroll();
     }
 
     public int getRowWidth() {
-        return Math.min(340, Math.max(180, width - 28));
+        return Math.max(100, width - 14);
     }
 
     public int getContentHeight() {
@@ -77,18 +76,12 @@ public final class ScrollableModuleList {
         clampScroll();
         this.scrollAmount = UIAnimations.smoothScroll(this.scrollAmount, this.targetScrollAmount, deltaSeconds);
 
-        // Vanilla recessed list container background & top/bottom borders
-        context.fill(x, y, x + width, y + height, 0xA0101010);
-        context.fill(x, y, x + width, y + 1, 0xFF000000);
-        context.fill(x, y + height - 1, x + width, y + height, 0xFF000000);
-
         int rowWidth = getRowWidth();
-        int rowX = x + (width - rowWidth) / 2 - 4;
+        int rowX = x + 4;
         boolean insideViewport = mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
 
-        // Strict scissor clipping so module rows never overflow outside the list bounds
-        context.enableScissor(x, y + 1, x + width, y + height - 1);
-        int currentY = y + 4 - (int) Math.round(scrollAmount);
+        context.enableScissor(x, y, x + width, y + height);
+        int currentY = y + 2 - (int) Math.round(scrollAmount);
         for (ModuleButton button : buttons) {
             if (currentY + ROW_HEIGHT >= y && currentY <= y + height) {
                 button.render(
@@ -101,6 +94,7 @@ public final class ScrollableModuleList {
                         mouseX,
                         mouseY,
                         insideViewport && !scrollbar.isDragging(),
+                        button.getModule() == selectedModule,
                         deltaSeconds
                 );
             }
@@ -115,14 +109,13 @@ public final class ScrollableModuleList {
         if (mouseX < x || mouseX > x + width || mouseY < y || mouseY > y + height) {
             return false;
         }
-        // Check scrollbar first so clicking/dragging the scrollbar never toggles a module
         if (scrollbar.mouseClicked(mouseX, mouseY, button, scrollAmount, getMaxScroll(), getContentHeight(), this::setScrollAmountImmediate)) {
             return true;
         }
 
         int rowWidth = getRowWidth();
-        int rowX = x + (width - rowWidth) / 2 - 4;
-        int currentY = y + 4 - (int) Math.round(scrollAmount);
+        int rowX = x + 4;
+        int currentY = y + 2 - (int) Math.round(scrollAmount);
         for (ModuleButton moduleButton : buttons) {
             if (currentY + ROW_HEIGHT >= y && currentY <= y + height) {
                 if (moduleButton.mouseClicked(mouseX, mouseY, button, rowX, currentY, rowWidth, ROW_HEIGHT)) {
@@ -150,7 +143,7 @@ public final class ScrollableModuleList {
         if (mouseX < x || mouseX > x + width || mouseY < y || mouseY > y + height) {
             return false;
         }
-        int step = (ROW_HEIGHT + ROW_SPACING) / 2;
+        int step = ROW_HEIGHT + ROW_SPACING;
         this.targetScrollAmount = MathHelper.clamp(this.targetScrollAmount - verticalAmount * step, 0.0, getMaxScroll());
         return true;
     }

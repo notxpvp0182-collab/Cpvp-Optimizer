@@ -21,25 +21,11 @@ public abstract class ModuleSetting<T> {
         this.onChange = onChange != null ? onChange : v -> {};
     }
 
-    public String getKey() {
-        return key;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public T getDefaultValue() {
-        return defaultValue;
-    }
-
-    public T getValue() {
-        return value;
-    }
+    public String getKey() { return key; }
+    public String getDisplayName() { return displayName; }
+    public String getDescription() { return description; }
+    public T getDefaultValue() { return defaultValue; }
+    public T getValue() { return value; }
 
     public void setValue(T newValue) {
         T validated = validate(newValue);
@@ -54,7 +40,6 @@ public abstract class ModuleSetting<T> {
     }
 
     protected abstract T validate(T candidate);
-
     public abstract String formatValue();
 
     public static final class BooleanSetting extends ModuleSetting<Boolean> {
@@ -89,13 +74,8 @@ public abstract class ModuleSetting<T> {
             this.unit = unit != null ? unit : "";
         }
 
-        public int getMin() {
-            return min;
-        }
-
-        public int getMax() {
-            return max;
-        }
+        public int getMin() { return min; }
+        public int getMax() { return max; }
 
         @Override
         protected Integer validate(Integer candidate) {
@@ -117,9 +97,7 @@ public abstract class ModuleSetting<T> {
             this.options = List.copyOf(options);
         }
 
-        public List<String> getOptions() {
-            return options;
-        }
+        public List<String> getOptions() { return options; }
 
         public void cycleNext() {
             int idx = options.indexOf(getValue());
@@ -130,6 +108,29 @@ public abstract class ModuleSetting<T> {
         @Override
         protected String validate(String candidate) {
             return (candidate != null && options.contains(candidate)) ? candidate : getDefaultValue();
+        }
+
+        @Override
+        public String formatValue() {
+            return getValue();
+        }
+    }
+
+    public static final class TextSetting extends ModuleSetting<String> {
+        private final int maxLength;
+
+        public TextSetting(String key, String displayName, String description, String defaultValue, int maxLength, Consumer<String> onChange) {
+            super(key, displayName, description, defaultValue, onChange);
+            this.maxLength = Math.max(4, maxLength);
+        }
+
+        public int getMaxLength() { return maxLength; }
+
+        @Override
+        protected String validate(String candidate) {
+            if (candidate == null) return getDefaultValue();
+            String trimmed = candidate.stripLeading();
+            return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
         }
 
         @Override

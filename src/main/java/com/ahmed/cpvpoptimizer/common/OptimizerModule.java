@@ -12,6 +12,7 @@ public abstract class OptimizerModule {
     private final boolean defaultEnabled;
     private boolean enabled;
     private final List<ModuleSetting<?>> settings = new ArrayList<>();
+    private final ModuleSetting.TextSetting customTagSetting;
 
     protected OptimizerModule(String id, String displayName, String description, ModuleCategory category, boolean defaultEnabled) {
         this.id = id;
@@ -20,6 +21,15 @@ public abstract class OptimizerModule {
         this.category = category;
         this.defaultEnabled = defaultEnabled;
         this.enabled = defaultEnabled;
+        this.customTagSetting = new ModuleSetting.TextSetting(
+                "custom_tag",
+                "Custom Label",
+                "Type a custom mode label or note for this module",
+                "Fast",
+                18,
+                null
+        );
+        this.settings.add(this.customTagSetting);
     }
 
     protected <T extends ModuleSetting<?>> T registerSetting(T setting) {
@@ -27,29 +37,13 @@ public abstract class OptimizerModule {
         return setting;
     }
 
-    public String getId() {
-        return id;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public ModuleCategory getCategory() {
-        return category;
-    }
-
-    public boolean isDefaultEnabled() {
-        return defaultEnabled;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
-    }
+    public String getId() { return id; }
+    public String getDisplayName() { return displayName; }
+    public String getDescription() { return description; }
+    public ModuleCategory getCategory() { return category; }
+    public boolean isDefaultEnabled() { return defaultEnabled; }
+    public boolean isEnabled() { return enabled; }
+    public String getCustomTag() { return customTagSetting.getValue(); }
 
     public void setEnabled(boolean enabled) {
         if (this.enabled != enabled) {
@@ -78,8 +72,6 @@ public abstract class OptimizerModule {
     }
 
     protected abstract void onEnable();
-
     protected abstract void onDisable();
-
     public abstract String getDiagnosticsSummary();
 }

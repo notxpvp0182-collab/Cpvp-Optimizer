@@ -66,7 +66,6 @@ public abstract class MinecraftClientMixin {
         ClientPlayerInteractionManagerAccessor imAccessor =
                 (ClientPlayerInteractionManagerAccessor) this.interactionManager;
 
-        // 1. Instant Hotbar Slot Sync + safe cooldown reset on slot switch
         int currentSlot = this.player.getInventory().getSelectedSlot();
         if (mod.getHotbarOptimizer().checkSlotChanged(currentSlot)) {
             if (mod.getHotbarOptimizer().isInstantSlotSyncEnabled()) {
@@ -74,15 +73,22 @@ public abstract class MinecraftClientMixin {
             }
             if (mod.getHotbarOptimizer().shouldResetUseDelayOnSwitch()) {
                 ItemStack newlySelected = this.player.getMainHandStack();
-                // Do NOT zero cooldown if switching to Elytra/Armor to prevent accidental double-swap
+                // Only clear use delay on hotbar switch if the target action's module is actually enabled
                 if (!cpvpOptimizer$isEquippableGear(newlySelected)) {
-                    this.itemUseCooldown = 0;
+                    if (newlySelected.getItem() instanceof BlockItem) {
+                        if (mod.getBlockPlacementOptimizer().isZeroPlaceDelayEnabled()) {
+                            this.itemUseCooldown = 0;
+                        }
+                    } else {
+                        this.itemUseCooldown = 0;
+                    }
                 }
-                this.attackCooldown = 0;
+                if (mod.getLeftClickOptimizer().shouldClearMissPenalty()) {
+                    this.attackCooldown = 0;
+                }
             }
         }
 
-        // 2. Clear left-click miss lock & block breaking cooldown
         if (mod.getLeftClickOptimizer().shouldClearMissPenalty()) {
             if (this.attackCooldown > 0) {
                 this.attackCooldown = 0;
@@ -146,15 +152,12 @@ public abstract class MinecraftClientMixin {
         ItemStack mainHand = this.player.getMainHandStack();
         ItemStack offHand = this.player.getOffHandStack();
 
-        // GUARD 1: Never zero-cooldown Elytra or Armor equip/swap!
-        // In 1.21.11, right-clicking swaps armor/elytra with your chestplate.
-        // Zeroing cooldown causes a single click to swap and immediately un-swap on the next tick.
+        // GUARD 1: Never zero-cooldown Elytra or Armor equip/swap
         if (cpvpOptimizer$isEquippableGear(mainHand) || (mainHand.isEmpty() && cpvpOptimizer$isEquippableGear(offHand))) {
             return;
         }
 
-        // GUARD 2: If player is holding a continuous-use item (Shield, Bow, Crossbow, Food, Potion, Trident),
-        // never zero-cooldown or it will stutter/interrupt the use animation.
+        // GUARD 2: Continuous-use items (Shield, Bow, Food, Drinkable Potion, Ender Pearl)
         if (this.player.isUsingItem() || cpvpOptimizer$isContinuousUseOrCooldownItem(mainHand)) {
             return;
         }
@@ -163,56 +166,63 @@ public abstract class MinecraftClientMixin {
         if (this.crosshairTarget instanceof BlockHitResult blockHit && this.crosshairTarget.getType() == HitResult.Type.BLOCK) {
             BlockState targetState = this.world.getBlockState(blockHit.getBlockPos());
 
-            // 1. Respawn Anchor Target Interaction (Charging with Glowstone or Detonating)
-            if (targetState.isOf(Blocks.RESPAWN_ANCHOR)) {
-                if (mainHand.isOf(Items.GLOWSTONE) && mod.getGlowstoneOptimizer().isZeroGlowstoneDelayEnabled()) {
-                    this.itemUseCooldown = 0;
-                    mod.getGlowstoneOptimizer().recordFastCharge();
+            // STRICT ANCHOR / GLOWSTONE SEPARATION:
+            // Only triggers when interacting with an ALREADY-PLACED Respawn Anchor in the world (and not sneaking to place a block against it)
+            if (targetState.isOf(Blocks.RESPAWN_ANCHOR) && !this.player.isSneaking()) {
+                int charges = targetState.get(RespawnAnchorBlock.CHARGES);
+                if (mainHand.isOf(Items.GLOWSTONE) && charges < 4) {
+                    if (mod.getGlowstoneOptimizer().isZeroGlowstoneDelayEnabled()) {
+                        this.itemUseCooldown = 0;
+                        mod.getGlowstoneOptimizer().recordFastCharge();
+                    }
                     return;
                 }
-                if (mod.getAnchorOptimizer().isInstantAnchorInteractEnabled()) {
-                    this.itemUseCooldown = 0;
-                    mod.getAnchorOptimizer().recordAnchorAction(targetState.get(RespawnAnchorBlock.CHARGES));
+                // Detonating a charged Respawn Anchor (charges > 0 and not holding Glowstone)
+                if (charges > 0 && !mainHand.isOf(Items.GLOWSTONE)) {
+                    if (mod.getAnchorOptimizer().isInstantAnchorInteractEnabled()) {
+                        this.itemUseCooldown = 0;
+                        mod.getAnchorOptimizer().recordAnchorAction(charges);
+                    }
                     return;
                 }
+                // If charges == 0 and holding a normal block, fall through to BlockPlacementOptimizer only!
             }
 
-            // GUARD 3: Protect Containers, Doors, Trapdoors, Gates, Levers, and Workstations when not sneaking
-            // so a single right-click opens them cleanly without double-toggling.
+            // GUARD 3: Protect Containers, Doors, Trapdoors, Gates, Workstations
             if (!this.player.isSneaking() && cpvpOptimizer$isInteractiveContainerOrDoor(targetState.getBlock())) {
                 return;
             }
         }
 
-        // 2. End Crystal Placement (Zero Delay)
-        if (mainHand.isOf(Items.END_CRYSTAL) && mod.getCrystalOptimizer().isZeroCrystalPlaceDelayEnabled()) {
-            this.itemUseCooldown = 0;
-            mod.getCrystalOptimizer().recordFastCrystalPlace();
-            return;
-        }
-
-        // 3. Experience Bottle Throw (Zero Delay)
-        if (mainHand.isOf(Items.EXPERIENCE_BOTTLE) && mod.getXpOptimizer().isFastXpThrowEnabled()) {
-            this.itemUseCooldown = Math.min(this.itemUseCooldown, mod.getXpOptimizer().getXpUseDelayTicks());
-            mod.getXpOptimizer().recordFastThrow();
-            return;
-        }
-
-        // 4. Block Placement (Obsidian, Respawn Anchor, Glowstone, Cobweb, etc.)
-        if (mainHand.getItem() instanceof BlockItem) {
-            if (mainHand.isOf(Items.RESPAWN_ANCHOR) && mod.getAnchorOptimizer().isInstantAnchorInteractEnabled()) {
+        // 2. End Crystal Placement (Strictly controlled by Crystal Optimizer)
+        if (mainHand.isOf(Items.END_CRYSTAL)) {
+            if (mod.getCrystalOptimizer().isZeroCrystalPlaceDelayEnabled()) {
                 this.itemUseCooldown = 0;
-                mod.getAnchorOptimizer().recordAnchorAction(0);
-                return;
+                mod.getCrystalOptimizer().recordFastCrystalPlace();
             }
+            return;
+        }
+
+        // 3. Experience Bottle Throw (Strictly controlled by XP Optimizer)
+        if (mainHand.isOf(Items.EXPERIENCE_BOTTLE)) {
+            if (mod.getXpOptimizer().isFastXpThrowEnabled()) {
+                this.itemUseCooldown = Math.min(this.itemUseCooldown, mod.getXpOptimizer().getXpUseDelayTicks());
+                mod.getXpOptimizer().recordFastThrow();
+            }
+            return;
+        }
+
+        // 4. Block Placement (Strictly controlled ONLY by Block Placement Optimizer!)
+        // If Block Placement Optimizer is OFF, placing ANY block (including Respawn Anchor block or Obsidian) keeps vanilla 4-tick delay!
+        if (mainHand.getItem() instanceof BlockItem) {
             if (mod.getBlockPlacementOptimizer().isZeroPlaceDelayEnabled()) {
                 this.itemUseCooldown = Math.min(this.itemUseCooldown, mod.getBlockPlacementOptimizer().getPlacementCooldownTicks());
                 mod.getBlockPlacementOptimizer().recordFastPlacement();
-                return;
             }
+            return;
         }
 
-        // 5. Safe Fast Right-Click for splash/lingering potions, snowballs, eggs, firework rockets
+        // 5. Non-block Fast Right-Click throwables (Splash Potion, Snowball, Wind Charge, Firework)
         if (mod.getRightClickOptimizer().isImmediateUseEnabled() && cpvpOptimizer$isSafeFastRightClickItem(mainHand)) {
             this.itemUseCooldown = Math.min(this.itemUseCooldown, mod.getRightClickOptimizer().getItemUseCooldownTicks());
             mod.getRightClickOptimizer().recordFastRightClick();

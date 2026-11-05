@@ -3,19 +3,10 @@ package com.ahmed.cpvpoptimizer.client.ui;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.util.math.MathHelper;
 
-/**
- * Classic Vanilla Minecraft Options-list style vertical scrollbar with proportional thumb,
- * draggable thumb interaction, and clickable track paging.
- */
 public final class Scrollbar {
-    private static final int TRACK_BG_COLOR = 0xFF000000;
-    private static final int THUMB_OUTER_COLOR = 0xFF808080;
-    private static final int THUMB_INNER_COLOR = 0xFFC0C0C0;
-    private static final int THUMB_HOVER_COLOR = 0xFFD8D8D8;
-
     private int x;
     private int y;
-    private int width = 6;
+    private int width = 4;
     private int height;
     private boolean dragging = false;
     private double dragGrabOffset = 0.0;
@@ -34,7 +25,7 @@ public final class Scrollbar {
     public int getThumbHeight(int contentHeight) {
         if (contentHeight <= height || contentHeight <= 0) return height;
         int thumb = (int) ((float) (height * height) / (float) contentHeight);
-        return MathHelper.clamp(thumb, 32, Math.max(32, height - 8));
+        return MathHelper.clamp(thumb, 24, Math.max(24, height - 6));
     }
 
     public int getThumbY(double scrollAmount, int maxScroll, int contentHeight) {
@@ -52,12 +43,10 @@ public final class Scrollbar {
         int thumbY = getThumbY(scrollAmount, maxScroll, contentHeight);
         boolean hovered = isMouseOverTrack(mouseX, mouseY);
 
-        // Vanilla recessed dark scrollbar track
-        context.fill(x, y, x + width, y + height, TRACK_BG_COLOR);
-        // Classic Minecraft 2-layer beveled scrollbar thumb
-        context.fill(x, thumbY, x + width, thumbY + thumbHeight, THUMB_OUTER_COLOR);
-        context.fill(x, thumbY, x + width - 1, thumbY + thumbHeight - 1,
-                (hovered || dragging) ? THUMB_HOVER_COLOR : THUMB_INNER_COLOR);
+        // Liquid glass slim track & glowing cyan thumb
+        context.fill(x, y, x + width, y + height, 0x44080C14);
+        int thumbColor = (hovered || dragging) ? 0xFF00E5FF : 0xAA38BDF8;
+        context.fill(x, thumbY, x + width, thumbY + thumbHeight, thumbColor);
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button, double currentScroll, int maxScroll, int contentHeight, ScrollConsumer scrollUpdater) {
@@ -71,7 +60,6 @@ public final class Scrollbar {
             this.dragging = true;
             this.dragGrabOffset = mouseY - thumbY;
         } else {
-            // Click on track jumps proportionally toward clicked position
             this.dragging = true;
             this.dragGrabOffset = thumbHeight / 2.0;
             updateScrollFromMouse(mouseY, maxScroll, contentHeight, scrollUpdater);
@@ -96,7 +84,7 @@ public final class Scrollbar {
     }
 
     public boolean isMouseOverTrack(double mouseX, double mouseY) {
-        return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
+        return mouseX >= x - 2 && mouseX <= x + width + 2 && mouseY >= y && mouseY <= y + height;
     }
 
     private void updateScrollFromMouse(double mouseY, int maxScroll, int contentHeight, ScrollConsumer scrollUpdater) {

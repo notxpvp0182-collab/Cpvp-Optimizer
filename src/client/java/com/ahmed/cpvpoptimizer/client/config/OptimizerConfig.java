@@ -24,6 +24,12 @@ public final class OptimizerConfig {
     private Path configPath;
     private ConfigSchema schema = new ConfigSchema();
 
+    // Floating Window state memory across sessions
+    private int windowX = -1;
+    private int windowY = -1;
+    private int windowWidth = 420;
+    private int windowHeight = 270;
+
     private OptimizerConfig() {
         try {
             this.configPath = FabricLoader.getInstance().getConfigDir().resolve("cpvpoptimizer.json");
@@ -38,6 +44,18 @@ public final class OptimizerConfig {
 
     public void setConfigPathForTesting(Path customPath) {
         this.configPath = customPath;
+    }
+
+    public int getWindowX() { return windowX; }
+    public int getWindowY() { return windowY; }
+    public int getWindowWidth() { return windowWidth; }
+    public int getWindowHeight() { return windowHeight; }
+
+    public void saveWindowBounds(int x, int y, int width, int height) {
+        this.windowX = x;
+        this.windowY = y;
+        this.windowWidth = width;
+        this.windowHeight = height;
     }
 
     public boolean isMasterEnabled() {
@@ -70,10 +88,6 @@ public final class OptimizerConfig {
         save();
     }
 
-    /**
-     * Activates the "Maximum Responsiveness" profile:
-     * Enables all modules and sets all interaction cooldowns to 0 ticks.
-     */
     public synchronized void applyMaximumResponsivenessProfile() {
         this.schema.masterEnabled = true;
         this.schema.safeMode = false;
@@ -178,6 +192,8 @@ public final class OptimizerConfig {
                 intSetting.setValue(Integer.parseInt(raw));
             } else if (setting instanceof ModuleSetting.CycleSetting cycleSetting) {
                 cycleSetting.setValue(raw);
+            } else if (setting instanceof ModuleSetting.TextSetting textSetting) {
+                textSetting.setValue(raw);
             }
         } catch (NumberFormatException ignored) {
             setting.reset();
