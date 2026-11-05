@@ -11,11 +11,6 @@ import net.minecraft.util.math.ColorHelper;
 
 import java.util.function.Consumer;
 
-/**
- * Vanilla-styled module row supporting:
- * - LEFT CLICK: Toggle module ON/OFF and save config.
- * - RIGHT CLICK: Open module's dedicated SettingsScreen without toggling.
- */
 public final class ModuleButton {
     private final OptimizerModule module;
     private final Consumer<OptimizerModule> onOpenSettings;
@@ -37,26 +32,22 @@ public final class ModuleButton {
         this.hoverProgress = UIAnimations.approach(hoverProgress, hovered ? 1.0f : 0.0f, deltaSeconds, 12.0f);
         this.toggleProgress = UIAnimations.approach(toggleProgress, module.isEnabled() ? 1.0f : 0.0f, deltaSeconds, 10.0f);
 
-        // Vanilla Minecraft button panel colors (no neon, no gradients, classic stone/slate borders)
         int outerBorder = hovered ? 0xFFFFFFFF : 0xFFA0A0A0;
         int baseBg = ColorHelper.lerp(hoverProgress, 0xFF2B2B2B, 0xFF3A3A3A);
 
         context.fill(x, y, x + width, y + height, outerBorder);
         context.fill(x + 1, y + 1, x + width - 1, y + height - 1, baseBg);
 
-        // Title + Category tag
         boolean masterActive = OptimizerConfig.getInstance().isMasterEnabled();
         int titleColor = masterActive ? 0xFFFFFFFF : 0xFF808080;
         String title = module.getDisplayName() + " [" + module.getCategory().getDisplayName() + "]";
         context.drawTextWithShadow(textRenderer, title, x + 8, y + 6, titleColor);
 
-        // Description / Live Diagnostics summary
         String subText = module.isEnabled() ? module.getDiagnosticsSummary() : module.getDescription();
         int maxSubWidth = Math.max(40, width - 115);
         String trimmedSub = textRenderer.trimToWidth(subText, maxSubWidth);
         context.drawTextWithShadow(textRenderer, trimmedSub, x + 8, y + 19, 0xFFA0A0A0);
 
-        // Right-side Vanilla ON/OFF status badge + "[Right-Click: Options]" hint
         boolean active = masterActive && module.isEnabled();
         String stateText = active ? "ON" : "OFF";
         int stateColor = active ? 0xFF55FF55 : 0xFFFF5555;
@@ -84,17 +75,15 @@ public final class ModuleButton {
             return false;
         }
         MinecraftClient.getInstance().getSoundManager().play(
-                PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK, 1.0F)
+                PositionedSoundInstance.ui(SoundEvents.UI_BUTTON_CLICK, 1.0F)
         );
         if (button == 0) {
-            // Left-click: toggle ON/OFF and persist immediately
             if (!OptimizerConfig.getInstance().isSafeMode()) {
                 module.toggle();
                 OptimizerConfig.getInstance().save();
             }
             return true;
         } else if (button == 1) {
-            // Right-click: open individual settings screen without toggling
             onOpenSettings.accept(module);
             return true;
         }

@@ -5,6 +5,7 @@ import com.ahmed.cpvpoptimizer.common.ModuleCategory;
 import com.ahmed.cpvpoptimizer.common.ModuleRegistry;
 import com.ahmed.cpvpoptimizer.common.OptimizerModule;
 import com.ahmed.cpvpoptimizer.server.ServerPerformanceManager;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -12,13 +13,9 @@ import net.minecraft.text.Text;
 
 import java.util.List;
 
-/**
- * Main Vanilla-styled CPVP Optimizer configuration screen.
- * Preserves scroll offset and selected category when navigating into and back from individual module settings.
- */
 public final class OptimizerScreen extends Screen {
     private final Screen parent;
-    private ModuleCategory selectedCategory = null; // null = All Categories
+    private ModuleCategory selectedCategory = null;
     private ScrollableModuleList moduleList;
     private double savedScrollOffset = 0.0;
     private float openFadeProgress = 0.0f;
@@ -43,7 +40,6 @@ public final class OptimizerScreen extends Screen {
     private void rebuildListAndWidgets() {
         this.clearChildren();
 
-        // Top Bar Controls: Category Filter, Master Switch, Safe Mode, Animations
         int topY = 24;
         int buttonW = 104;
         int startX = (this.width - (buttonW * 4 + 12)) / 2;
@@ -74,7 +70,6 @@ public final class OptimizerScreen extends Screen {
             rebuildListAndWidgets();
         }).dimensions(startX + (buttonW + 4) * 3, topY, buttonW, 20).build());
 
-        // Scrollable Module List
         List<OptimizerModule> filtered = selectedCategory == null
                 ? ModuleRegistry.getInstance().getAllModules()
                 : ModuleRegistry.getInstance().getByCategory(selectedCategory);
@@ -85,7 +80,6 @@ public final class OptimizerScreen extends Screen {
         this.moduleList.setDimensions(16, listTop, this.width - 32, Math.max(60, listBottom - listTop));
         this.moduleList.setScrollAmountImmediate(savedScrollOffset);
 
-        // Bottom Controls: Reset All Defaults & Done
         int bottomY = this.height - 26;
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Reset All Defaults"), btn -> {
             OptimizerConfig.getInstance().resetAllToDefaults();
@@ -123,7 +117,6 @@ public final class OptimizerScreen extends Screen {
             this.moduleList.render(context, this.textRenderer, mouseX, mouseY, deltaSeconds);
         }
 
-        // Header Title & Hint
         boolean serverSynced = ServerPerformanceManager.getInstance().isServerComponentActive();
         String serverTag = serverSynced ? "Server Mod: Active" : "Server Mod: Not Installed (Client-Only Mode)";
         context.drawCenteredTextWithShadow(
@@ -138,29 +131,29 @@ public final class OptimizerScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (this.moduleList != null && this.moduleList.mouseClicked(mouseX, mouseY, button)) {
+    public boolean mouseClicked(Click click, boolean doubled) {
+        if (this.moduleList != null && this.moduleList.mouseClicked(click.x(), click.y(), click.button())) {
             this.savedScrollOffset = this.moduleList.getScrollAmount();
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(click, doubled);
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (this.moduleList != null && this.moduleList.mouseDragged(mouseX, mouseY, button)) {
+    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        if (this.moduleList != null && this.moduleList.mouseDragged(click.x(), click.y(), click.button())) {
             this.savedScrollOffset = this.moduleList.getScrollAmount();
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        return super.mouseDragged(click, deltaX, deltaY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (this.moduleList != null && this.moduleList.mouseReleased(mouseX, mouseY, button)) {
+    public boolean mouseReleased(Click click) {
+        if (this.moduleList != null && this.moduleList.mouseReleased(click.x(), click.y(), click.button())) {
             return true;
         }
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(click);
     }
 
     @Override

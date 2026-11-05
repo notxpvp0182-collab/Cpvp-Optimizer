@@ -12,7 +12,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.RespawnAnchorBlock;
@@ -25,12 +25,16 @@ import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
 import org.lwjgl.glfw.GLFW;
 
 public final class CPVPOptimizerClient implements ClientModInitializer {
+    private static final KeyBinding.Category KEY_CATEGORY =
+            KeyBinding.Category.create(Identifier.of(NetworkProtocol.MOD_ID, "general"));
+
     private static CPVPOptimizerClient instance;
 
     private LatencyOptimizer latencyOptimizer;
@@ -63,7 +67,7 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
                 "key.cpvpoptimizer.open_gui",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_O,
-                "category.cpvpoptimizer"
+                KEY_CATEGORY
         ));
 
         registerNetworkHandlers();
@@ -79,7 +83,6 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
     public void registerClientModules() {
         ModuleRegistry registry = ModuleRegistry.getInstance();
 
-        // Combat Category
         this.crystalOptimizer = new CrystalOptimizer();
         this.anchorOptimizer = new AnchorOptimizer();
         this.totemOptimizer = new TotemOptimizer();
@@ -89,7 +92,6 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
         registry.register(totemOptimizer);
         registry.register(glowstoneOptimizer);
 
-        // Interaction Category
         this.blockPlacementOptimizer = new BlockPlacementOptimizer();
         this.rightClickOptimizer = new RightClickOptimizer();
         this.leftClickOptimizer = new LeftClickOptimizer();
@@ -99,13 +101,11 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
         registry.register(leftClickOptimizer);
         registry.register(inputOptimizer);
 
-        // Performance Category
         this.fpsOptimizer = new FPSOptimizer();
         this.renderingOptimizer = new RenderingOptimizer();
         registry.register(fpsOptimizer);
         registry.register(renderingOptimizer);
 
-        // Network Category
         this.latencyOptimizer = new LatencyOptimizer();
         this.packetOptimizer = new PacketOptimizer();
         registry.register(latencyOptimizer);
@@ -156,10 +156,8 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
 
             long tickStart = System.nanoTime();
 
-            // 1. Input Optimizer
             inputOptimizer.onClientInputTick(client.currentScreen != null, System.nanoTime() - tickStart);
 
-            // 2. Totem Optimizer (Offhand inspection)
             ItemStack offhand = client.player.getOffHandStack();
             boolean unchanged = ItemStack.areEqual(offhand, previousOffhandStack);
             totemOptimizer.updateOffhandState(offhand.isOf(Items.TOTEM_OF_UNDYING), unchanged);
@@ -167,7 +165,6 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
                 previousOffhandStack = offhand.copy();
             }
 
-            // 3. Crosshair Target & Combat/Interaction Diagnostics
             HitResult hit = client.crosshairTarget;
             if (client.options.attackKey.isPressed()) {
                 leftClickOptimizer.recordAttackEvaluation(System.nanoTime() - tickStart);
@@ -194,7 +191,6 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
                 }
             }
 
-            // 4. Crystal Optimizer entity scan profiling
             if (crystalOptimizer.isEnabled()) {
                 long scanStart = System.nanoTime();
                 Box combatBox = client.player.getBoundingBox().expand(12.0);
@@ -207,7 +203,6 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
                 crystalOptimizer.recordCrystalTickScan(crystalCount, System.nanoTime() - scanStart);
             }
 
-            // 5. Periodic Latency & Server Telemetry Sync
             if (clientTickCounter % Math.max(20, latencyOptimizer.getUpdateIntervalTicks()) == 0) {
                 if (ClientPlayNetworking.canSend(NetworkProtocol.HandshakeC2SPayload.ID)) {
                     sendServerHandshakeIfPossible();
@@ -219,7 +214,7 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
             }
         });
 
-        WorldRenderEvents.END.register(context -> {
+        HudRenderCallback.EVENT.register((drawContext, tickCounter) -> {
             long now = System.nanoTime();
             long frameDuration = now - lastFrameRenderNanos;
             lastFrameRenderNanos = now;
