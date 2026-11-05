@@ -7,15 +7,19 @@ import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.OrderedText;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.ColorHelper;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Premium Dark Liquid Glass Module Row:
- * - Displays ONLY the clean Module Name & Animated Liquid Glass Pill Switch (Zero extra description clutter).
- * - Left-Click: Smoothly toggles ON/OFF with animated glowing pill & saves immediately.
- * - Right-Click: Opens the adjacent Liquid Glass Settings Drawer for this module.
+ * Renders an individual Module Card matching the exact PYES_CLIENT reference image:
+ * - Dark carbon card surface (#15171C) with subtle slate border (#262932)
+ * - Top-left red-orange glowing corner bracket (⌜)
+ * - Custom vector icon on the left, bold white title & 2-line gray description on the right
+ * - Full-width bottom button: Orange-Red horizontal gradient ("ENABLED") or Dark recessed ("DISABLED")
  */
 public final class ModuleButton {
     private final OptimizerModule module;
@@ -33,59 +37,78 @@ public final class ModuleButton {
         return module;
     }
 
-    public void render(DrawContext context, TextRenderer textRenderer, int x, int y, int width, int height,
-                       int mouseX, int mouseY, boolean withinViewport, boolean isSelectedForSettings, float deltaSeconds) {
+    public void renderCard(DrawContext ctx, TextRenderer textRenderer, int x, int y, int width, int height,
+                           int mouseX, int mouseY, boolean withinViewport, boolean isSelectedForSettings, float deltaSeconds) {
         boolean hovered = withinViewport && isMouseOver(mouseX, mouseY, x, y, width, height);
         boolean active = OptimizerConfig.getInstance().isMasterEnabled() && module.isEnabled();
 
         this.hoverAnim = UIAnimations.approach(hoverAnim, hovered ? 1.0f : 0.0f, deltaSeconds, 16.0f);
         this.toggleAnim = UIAnimations.approach(toggleAnim, active ? 1.0f : 0.0f, deltaSeconds, 14.0f);
 
-        // Frosted Dark Liquid Glass Row Fill
-        int baseGlass = ColorHelper.lerp(hoverAnim, 0x88121722, 0xB81B2436);
-        int activeTint = ColorHelper.lerp(toggleAnim, baseGlass, 0xC8162C3D);
-        context.fill(x, y, x + width, y + height, activeTint);
+        // 1. Card Outer Border & Dark Carbon Surface
+        int borderColor = isSelectedForSettings
+                ? 0xFFFF4B2B
+                : ColorHelper.lerp(hoverAnim, 0xFF23262F, 0xFF383C4A);
+        int cardBg = ColorHelper.lerp(hoverAnim, 0xF214161C, 0xF5191C24);
 
-        // Specular Top Glass Edge Highlight & Subtle Bottom Border
-        int topBorder = isSelectedForSettings
-                ? 0xFF00E5FF
-                : ColorHelper.lerp(toggleAnim, 0x35FFFFFF, 0x9938BDF8);
-        context.fill(x, y, x + width, y + 1, topBorder);
-        context.fill(x, y + height - 1, x + width, y + height, 0x5505070B);
+        ctx.fill(x, y, x + width, y + height, borderColor);
+        ctx.fill(x + 1, y + 1, x + width - 1, y + height - 1, cardBg);
 
-        // Left Accent Glow Bar (expands smoothly when enabled)
-        int accentColor = ColorHelper.lerp(toggleAnim, 0x44475569, 0xFF00E5FF);
-        context.fill(x, y, x + 2, y + height, accentColor);
+        // 2. Signature Top-Left Red-Orange Corner Bracket (⌜) exactly like the screenshot
+        int bracketColor = active ? 0xFFFF4B2B : 0xCCDC2626;
+        ctx.fill(x, y, x + 12, y + 2, bracketColor);
+        ctx.fill(x, y, x + 2, y + 12, bracketColor);
 
-        // Clean Module Name (No cluttered description)
-        int nameColor = ColorHelper.lerp(toggleAnim, 0xFFB0BAC9, 0xFFFFFFFF);
-        int textY = y + (height - 8) / 2;
-        context.drawTextWithShadow(textRenderer, module.getDisplayName(), x + 10, textY, nameColor);
+        // 3. Left Custom Icon Symbol (24x24)
+        int iconX = x + 10;
+        int iconY = y + 12;
+        CustomModuleIcons.drawModuleIcon(ctx, module.getId(), iconX, iconY, active);
 
-        // Custom Tag / Gear Indicator + Animated Liquid Pill Switch on the right
-        int pillWidth = 30;
-        int pillHeight = 14;
-        int pillX = x + width - pillWidth - 8;
-        int pillY = y + (height - pillHeight) / 2;
+        // 4. Right Title & 2-Line Description
+        int textX = x + 40;
+        int maxTextW = Math.max(40, width - 46);
 
-        // Subtle "..." settings dots indicator to the left of the switch
-        int dotsColor = isSelectedForSettings ? 0xFF00E5FF : (hovered ? 0xCCFFFFFF : 0x6694A3B8);
-        context.drawTextWithShadow(textRenderer, "•••", pillX - 18, textY, dotsColor);
+        String rawTitle = module.getDisplayName().replace(" Optimizer", "");
+        String title = textRenderer.trimToWidth(rawTitle, maxTextW);
+        ctx.drawTextWithShadow(textRenderer, title, textX, y + 9, 0xFFFFFFFF);
 
-        // Pill Track
-        int trackBorder = ColorHelper.lerp(toggleAnim, 0x5594A3B8, 0xFF00E5FF);
-        int trackFill = ColorHelper.lerp(toggleAnim, 0xAA090D14, 0xCC0284C7);
-        context.fill(pillX, pillY, pillX + pillWidth, pillY + pillHeight, trackBorder);
-        context.fill(pillX + 1, pillY + 1, pillX + pillWidth - 1, pillY + pillHeight - 1, trackFill);
+        List<OrderedText> wrappedDesc = textRenderer.wrapLines(Text.literal(module.getDescription()), maxTextW);
+        int descY = y + 21;
+        for (int i = 0; i < Math.min(2, wrappedDesc.size()); i++) {
+            ctx.drawText(textRenderer, wrappedDesc.get(i), textX, descY + (i * 9), 0xFF8E96A8, false);
+        }
 
-        // Sliding Pill Knob
-        int knobSize = pillHeight - 4;
-        int knobMinX = pillX + 2;
-        int knobMaxX = pillX + pillWidth - knobSize - 2;
-        int knobX = knobMinX + Math.round(toggleAnim * (knobMaxX - knobMinX));
-        int knobY = pillY + 2;
-        int knobColor = ColorHelper.lerp(toggleAnim, 0xFF94A3B8, 0xFFFFFFFF);
-        context.fill(knobX, knobY, knobX + knobSize, knobY + knobSize, knobColor);
+        // 5. Bottom Full-Width Action Button (ENABLED with Orange-Red Gradient / DISABLED Dark)
+        int btnX = x + 8;
+        int btnW = width - 16;
+        int btnH = 16;
+        int btnY = y + height - btnH - 7;
+
+        if (active) {
+            drawHorizontalGradient(ctx, btnX, btnY, btnW, btnH, 0xFFFF9A1F, 0xFFFF3B1D);
+            // Subtle top highlight on the enabled button
+            ctx.fill(btnX + 1, btnY, btnX + btnW - 1, btnY + 1, 0x66FFFFFF);
+            String label = "ENABLED";
+            int tw = textRenderer.getWidth(label);
+            ctx.drawTextWithShadow(textRenderer, label, btnX + (btnW - tw) / 2, btnY + 4, 0xFFFFFFFF);
+        } else {
+            ctx.fill(btnX, btnY, btnX + btnW, btnY + btnH, 0xFF252832);
+            ctx.fill(btnX + 1, btnY + 1, btnX + btnW - 1, btnY + btnH - 1, 0xFF101217);
+            String label = "DISABLED";
+            int tw = textRenderer.getWidth(label);
+            ctx.drawText(textRenderer, label, btnX + (btnW - tw) / 2, btnY + 4, 0xFF94A3B8, false);
+        }
+    }
+
+    public static void drawHorizontalGradient(DrawContext ctx, int x, int y, int width, int height, int leftColor, int rightColor) {
+        int steps = 12;
+        for (int i = 0; i < steps; i++) {
+            int sx = x + (i * width) / steps;
+            int ex = x + ((i + 1) * width) / steps;
+            float t = (float) i / (float) (steps - 1);
+            int color = ColorHelper.lerp(t, leftColor, rightColor);
+            ctx.fill(sx, y, ex, y + height, color);
+        }
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button, int x, int y, int width, int height) {

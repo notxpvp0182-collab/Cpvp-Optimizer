@@ -43,9 +43,8 @@ public final class Scrollbar {
         int thumbY = getThumbY(scrollAmount, maxScroll, contentHeight);
         boolean hovered = isMouseOverTrack(mouseX, mouseY);
 
-        // Liquid glass slim track & glowing cyan thumb
-        context.fill(x, y, x + width, y + height, 0x44080C14);
-        int thumbColor = (hovered || dragging) ? 0xFF00E5FF : 0xAA38BDF8;
+        context.fill(x, y, x + width, y + height, 0x660B0C10);
+        int thumbColor = (hovered || dragging) ? 0xFFFF6B2B : 0xCCFF3B1D;
         context.fill(x, thumbY, x + width, thumbY + thumbHeight, thumbColor);
     }
 
