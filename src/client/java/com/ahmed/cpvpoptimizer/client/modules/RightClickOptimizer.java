@@ -3,52 +3,54 @@ package com.ahmed.cpvpoptimizer.client.modules;
 import com.ahmed.cpvpoptimizer.common.ModuleCategory;
 import com.ahmed.cpvpoptimizer.common.ModuleId;
 import com.ahmed.cpvpoptimizer.common.ModuleSetting.BooleanSetting;
+import com.ahmed.cpvpoptimizer.common.ModuleSetting.IntSliderSetting;
 import com.ahmed.cpvpoptimizer.common.OptimizerModule;
-import com.ahmed.cpvpoptimizer.common.RingBufferStats;
 
 import java.util.Locale;
 
-/**
- * MODULE 4: RIGHT CLICK OPTIMIZER
- * Optimizes local item-use and block-interact target checks without altering vanilla item-use cooldowns
- * or repeating packets.
- */
 public final class RightClickOptimizer extends OptimizerModule {
-    private final BooleanSetting deduplicateHandCheck;
-    private final BooleanSetting interactionDiagnostics;
+    private final BooleanSetting immediateUseDispatch;
+    private final IntSliderSetting itemUseCooldownTicks;
+    private final BooleanSetting skipRedundantOffhand;
 
-    private final RingBufferStats useEvalNanos = new RingBufferStats(100);
-    private int redundantHandChecksSkipped = 0;
+    private int fastRightClicks = 0;
 
     public RightClickOptimizer() {
         super(
                 ModuleId.RIGHT_CLICK_OPTIMIZER,
                 "Right Click Optimizer",
-                "Reduces redundant hand/target state checks during right-click interactions.",
+                "Minimizes right-click item-use cooldown and removes redundant hand checks.",
                 ModuleCategory.INTERACTION,
                 true
         );
 
-        this.deduplicateHandCheck = registerSetting(new BooleanSetting(
-                "deduplicate_hand_check", "Skip Empty Offhand Eval",
-                "Skips redundant offhand target evaluation when mainhand interaction succeeds or offhand is empty.",
+        this.immediateUseDispatch = registerSetting(new BooleanSetting(
+                "immediate_use_dispatch", "Immediate Right-Click Processing",
+                "Removes artificial client delay between right-click input and interaction dispatch.",
                 true, null
         ));
-        this.interactionDiagnostics = registerSetting(new BooleanSetting(
-                "interaction_diagnostics", "Use-Item Profiling",
-                "Measures right-click dispatch preparation overhead.",
+        this.itemUseCooldownTicks = registerSetting(new IntSliderSetting(
+                "item_use_cooldown", "Right-Click Cooldown",
+                "Client cooldown ticks for general right-click interactions (0 = Fastest).",
+                0, 0, 4, "ticks", null
+        ));
+        this.skipRedundantOffhand = registerSetting(new BooleanSetting(
+                "deduplicate_hand_check", "Skip Redundant Offhand Check",
+                "Skips unnecessary offhand checks when mainhand action already succeeded.",
                 true, null
         ));
     }
 
-    public void recordRightClickEvaluation(long durationNanos, boolean skippedEmptyOffhand) {
-        if (!isEnabled()) return;
-        if (deduplicateHandCheck.getValue() && skippedEmptyOffhand) {
-            redundantHandChecksSkipped++;
-        }
-        if (interactionDiagnostics.getValue()) {
-            useEvalNanos.record(durationNanos);
-        }
+    public boolean isImmediateUseEnabled() {
+        return isEnabled() && immediateUseDispatch.getValue();
+    }
+
+    public int getItemUseCooldownTicks() {
+        return itemUseCooldownTicks.getValue();
+    }
+
+    public void recordFastRightClick() {
+        fastRightClicks++;
     }
 
     @Override
@@ -56,17 +58,11 @@ public final class RightClickOptimizer extends OptimizerModule {
 
     @Override
     protected void onDisable() {
-        useEvalNanos.clear();
-        redundantHandChecksSkipped = 0;
+        fastRightClicks = 0;
     }
 
     @Override
     public String getDiagnosticsSummary() {
-        return String.format(
-                Locale.ROOT,
-                "Right-Click Eval: %.2f us | Skipped Empty Hand Checks: %d",
-                useEvalNanos.average() / 1000.0,
-                redundantHandChecksSkipped
-        );
+        return String.format(Locale.ROOT, "Use Cooldown: %d ticks | Fast Interactions: %d", itemUseCooldownTicks.getValue(), fastRightClicks);
     }
 }

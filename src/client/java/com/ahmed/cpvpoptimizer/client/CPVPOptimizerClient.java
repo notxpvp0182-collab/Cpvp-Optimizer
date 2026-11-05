@@ -13,22 +13,16 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.RespawnAnchorBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.decoration.EndCrystalEntity;
-import net.minecraft.item.BlockItem;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.Box;
 import org.lwjgl.glfw.GLFW;
 
 public final class CPVPOptimizerClient implements ClientModInitializer {
@@ -39,6 +33,7 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
 
     private LatencyOptimizer latencyOptimizer;
     private InputOptimizer inputOptimizer;
+    private HotbarOptimizer hotbarOptimizer;
     private LeftClickOptimizer leftClickOptimizer;
     private RightClickOptimizer rightClickOptimizer;
     private BlockPlacementOptimizer blockPlacementOptimizer;
@@ -46,6 +41,7 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
     private AnchorOptimizer anchorOptimizer;
     private TotemOptimizer totemOptimizer;
     private GlowstoneOptimizer glowstoneOptimizer;
+    private XPOptimizer xpOptimizer;
     private FPSOptimizer fpsOptimizer;
     private RenderingOptimizer renderingOptimizer;
     private PacketOptimizer packetOptimizer;
@@ -53,7 +49,8 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
     private KeyBinding openGuiKeyBinding;
     private long clientTickCounter = 0L;
     private long lastFrameRenderNanos = System.nanoTime();
-    private ItemStack previousOffhandStack = ItemStack.EMPTY;
+    private Item previousOffhandItem = Items.AIR;
+    private int previousOffhandCount = 0;
 
     @Override
     public void onInitializeClient() {
@@ -73,39 +70,56 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
         registerNetworkHandlers();
         registerTickAndRenderHooks();
 
-        CPVPOptimizerCommon.LOGGER.info("[CPVP Optimizer] Client initialized with all 13 modules registered.");
+        CPVPOptimizerCommon.LOGGER.info("[CPVP Optimizer] High-responsiveness client initialized.");
     }
 
     public static CPVPOptimizerClient getInstance() {
         return instance;
     }
 
+    public HotbarOptimizer getHotbarOptimizer() { return hotbarOptimizer; }
+    public LeftClickOptimizer getLeftClickOptimizer() { return leftClickOptimizer; }
+    public RightClickOptimizer getRightClickOptimizer() { return rightClickOptimizer; }
+    public BlockPlacementOptimizer getBlockPlacementOptimizer() { return blockPlacementOptimizer; }
+    public CrystalOptimizer getCrystalOptimizer() { return crystalOptimizer; }
+    public AnchorOptimizer getAnchorOptimizer() { return anchorOptimizer; }
+    public GlowstoneOptimizer getGlowstoneOptimizer() { return glowstoneOptimizer; }
+    public XPOptimizer getXpOptimizer() { return xpOptimizer; }
+
     public void registerClientModules() {
         ModuleRegistry registry = ModuleRegistry.getInstance();
 
+        // Combat Category
         this.crystalOptimizer = new CrystalOptimizer();
         this.anchorOptimizer = new AnchorOptimizer();
-        this.totemOptimizer = new TotemOptimizer();
         this.glowstoneOptimizer = new GlowstoneOptimizer();
+        this.totemOptimizer = new TotemOptimizer();
+        this.xpOptimizer = new XPOptimizer();
         registry.register(crystalOptimizer);
         registry.register(anchorOptimizer);
-        registry.register(totemOptimizer);
         registry.register(glowstoneOptimizer);
+        registry.register(totemOptimizer);
+        registry.register(xpOptimizer);
 
+        // Interaction Category
         this.blockPlacementOptimizer = new BlockPlacementOptimizer();
+        this.hotbarOptimizer = new HotbarOptimizer();
         this.rightClickOptimizer = new RightClickOptimizer();
         this.leftClickOptimizer = new LeftClickOptimizer();
         this.inputOptimizer = new InputOptimizer();
         registry.register(blockPlacementOptimizer);
+        registry.register(hotbarOptimizer);
         registry.register(rightClickOptimizer);
         registry.register(leftClickOptimizer);
         registry.register(inputOptimizer);
 
+        // Performance Category
         this.fpsOptimizer = new FPSOptimizer();
         this.renderingOptimizer = new RenderingOptimizer();
         registry.register(fpsOptimizer);
         registry.register(renderingOptimizer);
 
+        // Network Category
         this.latencyOptimizer = new LatencyOptimizer();
         this.packetOptimizer = new PacketOptimizer();
         registry.register(latencyOptimizer);
@@ -155,52 +169,20 @@ public final class CPVPOptimizerClient implements ClientModInitializer {
             }
 
             long tickStart = System.nanoTime();
-
             inputOptimizer.onClientInputTick(client.currentScreen != null, System.nanoTime() - tickStart);
 
+            // Zero-allocation offhand Totem state check (no ItemStack.copy() garbage)
             ItemStack offhand = client.player.getOffHandStack();
-            boolean unchanged = ItemStack.areEqual(offhand, previousOffhandStack);
+            Item currentOffhandItem = offhand.getItem();
+            int currentOffhandCount = offhand.getCount();
+            boolean unchanged = (currentOffhandItem == previousOffhandItem && currentOffhandCount == previousOffhandCount);
             totemOptimizer.updateOffhandState(offhand.isOf(Items.TOTEM_OF_UNDYING), unchanged);
-            if (!unchanged) {
-                previousOffhandStack = offhand.copy();
-            }
+            previousOffhandItem = currentOffhandItem;
+            previousOffhandCount = currentOffhandCount;
 
             HitResult hit = client.crosshairTarget;
-            if (client.options.attackKey.isPressed()) {
-                leftClickOptimizer.recordAttackEvaluation(System.nanoTime() - tickStart);
-            }
-            if (client.options.useKey.isPressed()) {
-                boolean skippedEmptyOffhand = offhand.isEmpty();
-                rightClickOptimizer.recordRightClickEvaluation(System.nanoTime() - tickStart, skippedEmptyOffhand);
-            }
-
             if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
-                ItemStack mainHand = client.player.getMainHandStack();
-                if (mainHand.getItem() instanceof BlockItem) {
-                    blockPlacementOptimizer.checkAndRecordTarget(
-                            clientTickCounter, blockHit.getBlockPos(), System.nanoTime() - tickStart
-                    );
-                }
-                if (mainHand.isOf(Items.GLOWSTONE)) {
-                    glowstoneOptimizer.recordGlowstoneCheck(System.nanoTime() - tickStart);
-                }
-                BlockState state = client.world.getBlockState(blockHit.getBlockPos());
-                if (state.isOf(Blocks.RESPAWN_ANCHOR)) {
-                    int charges = state.get(RespawnAnchorBlock.CHARGES);
-                    anchorOptimizer.recordAnchorInspection(charges, System.nanoTime() - tickStart);
-                }
-            }
-
-            if (crystalOptimizer.isEnabled()) {
-                long scanStart = System.nanoTime();
-                Box combatBox = client.player.getBoundingBox().expand(12.0);
-                int crystalCount = 0;
-                for (Entity entity : client.world.getOtherEntities(client.player, combatBox)) {
-                    if (entity instanceof EndCrystalEntity) {
-                        crystalCount++;
-                    }
-                }
-                crystalOptimizer.recordCrystalTickScan(crystalCount, System.nanoTime() - scanStart);
+                blockPlacementOptimizer.checkAndRecordTarget(clientTickCounter, blockHit.getBlockPos());
             }
 
             if (clientTickCounter % Math.max(20, latencyOptimizer.getUpdateIntervalTicks()) == 0) {

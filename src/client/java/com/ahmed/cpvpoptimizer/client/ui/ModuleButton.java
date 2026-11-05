@@ -29,8 +29,8 @@ public final class ModuleButton {
 
     public void render(DrawContext context, TextRenderer textRenderer, int x, int y, int width, int height, int mouseX, int mouseY, boolean withinViewport, float deltaSeconds) {
         boolean hovered = withinViewport && isMouseOver(mouseX, mouseY, x, y, width, height);
-        this.hoverProgress = UIAnimations.approach(hoverProgress, hovered ? 1.0f : 0.0f, deltaSeconds, 12.0f);
-        this.toggleProgress = UIAnimations.approach(toggleProgress, module.isEnabled() ? 1.0f : 0.0f, deltaSeconds, 10.0f);
+        this.hoverProgress = UIAnimations.approach(hoverProgress, hovered ? 1.0f : 0.0f, deltaSeconds, 14.0f);
+        this.toggleProgress = UIAnimations.approach(toggleProgress, module.isEnabled() ? 1.0f : 0.0f, deltaSeconds, 12.0f);
 
         int outerBorder = hovered ? 0xFFFFFFFF : 0xFFA0A0A0;
         int baseBg = ColorHelper.lerp(hoverProgress, 0xFF2B2B2B, 0xFF3A3A3A);
@@ -41,20 +41,15 @@ public final class ModuleButton {
         boolean masterActive = OptimizerConfig.getInstance().isMasterEnabled();
         int titleColor = masterActive ? 0xFFFFFFFF : 0xFF808080;
         String title = module.getDisplayName() + " [" + module.getCategory().getDisplayName() + "]";
-        context.drawTextWithShadow(textRenderer, title, x + 8, y + 6, titleColor);
-
-        String subText = module.isEnabled() ? module.getDiagnosticsSummary() : module.getDescription();
-        int maxSubWidth = Math.max(40, width - 115);
-        String trimmedSub = textRenderer.trimToWidth(subText, maxSubWidth);
-        context.drawTextWithShadow(textRenderer, trimmedSub, x + 8, y + 19, 0xFFA0A0A0);
+        context.drawTextWithShadow(textRenderer, title, x + 8, y + (height - 8) / 2, titleColor);
 
         boolean active = masterActive && module.isEnabled();
         String stateText = active ? "ON" : "OFF";
         int stateColor = active ? 0xFF55FF55 : 0xFFFF5555;
-        int badgeWidth = 44;
+        int badgeWidth = 46;
         int badgeX = x + width - badgeWidth - 6;
-        int badgeY = y + 5;
-        int badgeHeight = height - 10;
+        int badgeY = y + 4;
+        int badgeHeight = height - 8;
 
         int badgeBg = ColorHelper.lerp(toggleProgress, 0xFF222222, 0xFF334433);
         context.fill(badgeX, badgeY, badgeX + badgeWidth, badgeY + badgeHeight, 0xFF000000);

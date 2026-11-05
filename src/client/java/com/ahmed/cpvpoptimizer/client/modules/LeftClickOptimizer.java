@@ -4,53 +4,42 @@ import com.ahmed.cpvpoptimizer.common.ModuleCategory;
 import com.ahmed.cpvpoptimizer.common.ModuleId;
 import com.ahmed.cpvpoptimizer.common.ModuleSetting.BooleanSetting;
 import com.ahmed.cpvpoptimizer.common.OptimizerModule;
-import com.ahmed.cpvpoptimizer.common.RingBufferStats;
 
 import java.util.Locale;
 
-/**
- * MODULE 3: LEFT CLICK OPTIMIZER
- * Profiles local attack input handling and reuses the current frame's crosshair target
- * when valid. Strictly preserves vanilla attack cooldowns and never synthesizes clicks.
- */
 public final class LeftClickOptimizer extends OptimizerModule {
+    private final BooleanSetting clearMissPenalty;
     private final BooleanSetting reuseCrosshairTarget;
-    private final BooleanSetting profileAttackDelay;
 
-    private final RingBufferStats attackEvalNanos = new RingBufferStats(100);
-    private int totalLeftClicks = 0;
+    private int clearedMissPenalties = 0;
 
     public LeftClickOptimizer() {
         super(
                 ModuleId.LEFT_CLICK_OPTIMIZER,
                 "Left Click Optimizer",
-                "Profiles attack input handling and avoids duplicate target raycasts during left-click.",
+                "Removes client-side miss-swing delay penalty and reuses crosshair raycast targets.",
                 ModuleCategory.INTERACTION,
                 true
         );
 
+        this.clearMissPenalty = registerSetting(new BooleanSetting(
+                "clear_miss_penalty", "Remove Miss-Swing Delay",
+                "Clears the 10-tick client attack lock when a swing misses a crystal or entity.",
+                true, null
+        ));
         this.reuseCrosshairTarget = registerSetting(new BooleanSetting(
                 "reuse_crosshair_target", "Reuse Tick Crosshair Target",
-                "Reuses the already-computed crosshair HitResult for the current tick.",
-                true, null
-        ));
-        this.profileAttackDelay = registerSetting(new BooleanSetting(
-                "profile_attack_delay", "Attack Dispatch Profiling",
-                "Measures local left-click evaluation overhead.",
+                "Avoids duplicate raycasts during left-click dispatch.",
                 true, null
         ));
     }
 
-    public boolean shouldReuseCrosshairTarget() {
-        return isEnabled() && reuseCrosshairTarget.getValue();
+    public boolean shouldClearMissPenalty() {
+        return isEnabled() && clearMissPenalty.getValue();
     }
 
-    public void recordAttackEvaluation(long durationNanos) {
-        if (!isEnabled()) return;
-        totalLeftClicks++;
-        if (profileAttackDelay.getValue()) {
-            attackEvalNanos.record(durationNanos);
-        }
+    public void recordClearedMissPenalty() {
+        clearedMissPenalties++;
     }
 
     @Override
@@ -58,17 +47,11 @@ public final class LeftClickOptimizer extends OptimizerModule {
 
     @Override
     protected void onDisable() {
-        attackEvalNanos.clear();
-        totalLeftClicks = 0;
+        clearedMissPenalties = 0;
     }
 
     @Override
     public String getDiagnosticsSummary() {
-        return String.format(
-                Locale.ROOT,
-                "Left-Click Eval: %.2f us | Observed Attacks: %d | Vanilla Cooldown: Preserved",
-                attackEvalNanos.average() / 1000.0,
-                totalLeftClicks
-        );
+        return String.format(Locale.ROOT, "Miss Lock Cleared: %d times | Direct Target Reuse: ON", clearedMissPenalties);
     }
 }

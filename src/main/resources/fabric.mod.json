@@ -3,13 +3,13 @@
   "id": "cpvpoptimizer",
   "version": "${version}",
   "name": "CPVP Optimizer",
-  "description": "Legitimate Crystal & Anchor PvP client and server performance optimization, diagnostics, and latency telemetry framework.",
+  "description": "High-responsiveness Crystal & Anchor PvP client and server performance optimization framework.",
   "authors": [
     "Ahmed"
   ],
   "contact": {
-    "homepage": "https://github.com/ahmed/CPVP-Optimizer",
-    "sources": "https://github.com/ahmed/CPVP-Optimizer"
+    "homepage": "https://github.com/notxpvp0182-collab/Cpvp-Optimizer",
+    "sources": "https://github.com/notxpvp0182-collab/Cpvp-Optimizer"
   },
   "license": "MIT",
   "environment": "*",
@@ -27,13 +27,19 @@
       "com.ahmed.cpvpoptimizer.client.CPVPModMenuIntegration"
     ]
   },
+  "mixins": [
+    {
+      "config": "cpvpoptimizer.mixins.json",
+      "environment": "client"
+    }
+  ],
   "depends": {
-    "fabricloader": "*",
+    "fabricloader": ">=0.18.1",
     "minecraft": "~1.21.11",
     "java": ">=21",
-    "fabric-api": "*"
+    "fabric-api": ">=0.140.0+1.21.11"
   },
   "suggests": {
-    "modmenu": "*"
+    "modmenu": ">=17.0.0-beta.1"
   }
 }

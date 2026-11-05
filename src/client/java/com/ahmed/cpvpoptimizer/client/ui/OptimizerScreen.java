@@ -40,7 +40,7 @@ public final class OptimizerScreen extends Screen {
     private void rebuildListAndWidgets() {
         this.clearChildren();
 
-        int topY = 24;
+        int topY = 22;
         int buttonW = 104;
         int startX = (this.width - (buttonW * 4 + 12)) / 2;
 
@@ -52,9 +52,8 @@ public final class OptimizerScreen extends Screen {
         }).dimensions(startX, topY, buttonW, 20).build());
 
         OptimizerConfig cfg = OptimizerConfig.getInstance();
-        String masterLabel = "Master: " + (cfg.isMasterEnabled() ? "ON" : "OFF");
-        this.addDrawableChild(ButtonWidget.builder(Text.literal(masterLabel), btn -> {
-            cfg.setMasterEnabled(!cfg.isMasterEnabled());
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Max Responsiveness"), btn -> {
+            cfg.applyMaximumResponsivenessProfile();
             rebuildListAndWidgets();
         }).dimensions(startX + (buttonW + 4), topY, buttonW, 20).build());
 
@@ -75,8 +74,8 @@ public final class OptimizerScreen extends Screen {
                 : ModuleRegistry.getInstance().getByCategory(selectedCategory);
 
         this.moduleList = new ScrollableModuleList(filtered, this::openModuleSettings);
-        int listTop = 50;
-        int listBottom = this.height - 36;
+        int listTop = 48;
+        int listBottom = this.height - 34;
         this.moduleList.setDimensions(16, listTop, this.width - 32, Math.max(60, listBottom - listTop));
         this.moduleList.setScrollAmountImmediate(savedScrollOffset);
 
@@ -109,7 +108,7 @@ public final class OptimizerScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         float deltaSeconds = Math.min(0.1f, delta / 20.0f);
-        this.openFadeProgress = UIAnimations.approach(this.openFadeProgress, 1.0f, deltaSeconds, 10.0f);
+        this.openFadeProgress = UIAnimations.approach(this.openFadeProgress, 1.0f, deltaSeconds, 12.0f);
 
         this.renderBackground(context, mouseX, mouseY, delta);
 
@@ -118,10 +117,10 @@ public final class OptimizerScreen extends Screen {
         }
 
         boolean serverSynced = ServerPerformanceManager.getInstance().isServerComponentActive();
-        String serverTag = serverSynced ? "Server Mod: Active" : "Server Mod: Not Installed (Client-Only Mode)";
+        String serverTag = serverSynced ? "Server: Active" : "Client-Only Mode";
         context.drawCenteredTextWithShadow(
                 this.textRenderer,
-                Text.literal("CPVP Optimizer (1.21.11) - Left-Click: Toggle | Right-Click: Module Settings | " + serverTag),
+                Text.literal("CPVP Optimizer (1.21.11) - Left-Click: Toggle | Right-Click: Settings | " + serverTag),
                 this.width / 2,
                 8,
                 0xFFFFFFFF

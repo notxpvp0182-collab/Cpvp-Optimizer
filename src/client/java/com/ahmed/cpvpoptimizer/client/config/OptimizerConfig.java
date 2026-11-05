@@ -17,10 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
-/**
- * Persistent, versioned JSON configuration manager using atomic file replacement.
- * Never writes on every frame; only persists on explicit state changes.
- */
 public final class OptimizerConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final OptimizerConfig INSTANCE = new OptimizerConfig();
@@ -32,7 +28,6 @@ public final class OptimizerConfig {
         try {
             this.configPath = FabricLoader.getInstance().getConfigDir().resolve("cpvpoptimizer.json");
         } catch (Throwable ignored) {
-            // Fallback for headless JUnit test environments
             this.configPath = Path.of("build", "tmp", "cpvpoptimizer-test.json");
         }
     }
@@ -72,6 +67,27 @@ public final class OptimizerConfig {
 
     public void setUiAnimationsEnabled(boolean enabled) {
         this.schema.uiAnimationsEnabled = enabled;
+        save();
+    }
+
+    /**
+     * Activates the "Maximum Responsiveness" profile:
+     * Enables all modules and sets all interaction cooldowns to 0 ticks.
+     */
+    public synchronized void applyMaximumResponsivenessProfile() {
+        this.schema.masterEnabled = true;
+        this.schema.safeMode = false;
+        for (OptimizerModule module : ModuleRegistry.getInstance().getAllModules()) {
+            module.resetDefaults();
+            module.setEnabled(true);
+            for (ModuleSetting<?> setting : module.getSettings()) {
+                if (setting instanceof ModuleSetting.IntSliderSetting slider && slider.getMin() == 0) {
+                    slider.setValue(0);
+                } else if (setting instanceof ModuleSetting.BooleanSetting boolSetting) {
+                    boolSetting.setValue(true);
+                }
+            }
+        }
         save();
     }
 
