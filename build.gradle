@@ -70,8 +70,7 @@ test {
     useJUnitPlatform()
 }
 
-// শুধুমাত্র একটাই Universal JAR তৈরি হবে (Client + Server একসাথে)
+// Single Universal JAR (Loom automatically bundles main + client sourceSets)
 remapJar {
-    from sourceSets.client.output
     archiveFileName = "CPVP-Optimizer-1.21.11.jar"
 }
