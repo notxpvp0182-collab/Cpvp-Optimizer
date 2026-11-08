@@ -5,7 +5,6 @@ import com.ahmed.cpvpoptimizer.common.ModuleCategory;
 import com.ahmed.cpvpoptimizer.common.ModuleRegistry;
 import com.ahmed.cpvpoptimizer.common.ModuleSetting;
 import com.ahmed.cpvpoptimizer.common.OptimizerModule;
-import com.ahmed.cpvpoptimizer.server.ServerPerformanceManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
@@ -23,18 +22,14 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Exact PYES_CLIENT Mods & HUD Manager Dashboard UI/UX:
- * - Top Bar: Stylized Logo + "CPVP_OPTIMIZER / MODS & HUD MANAGER", "[ SETTINGS ]" button, "Search modules..." box with magnifier, and 3 grid squares.
- * - Left Sidebar: "DASHBOARD" (red-orange gradient active tab), "PROFILE", category filters, and bottom "■ CONNECTED / VERSION 1.0.0".
- * - Center Area: 4-Column Dark Carbon Module Card Grid with custom icons, top-left red corner brackets, and gradient ENABLED / dark DISABLED buttons.
- * - Bottom Status Bar: "STATUS: CONNECTED", "CPVP OPTIMIZER", "VERSION: 1.0.0".
- * - Right-clicking any card opens its dark carbon & red-accented customization overlay.
+ * Clean Auto-Adaptive ClickGUI Dashboard:
+ * - No P logo (clean "CPVP_OPTIMIZER" title only).
+ * - No "CONNECTED", "STATUS", or "VERSION" texts anywhere.
+ * - No manual resize system; automatically detects phone/PC screen resolution & GUI scale and fits cleanly.
  */
 public final class OptimizerScreen extends Screen {
-    private static final int HEADER_H = 42;
-    private static final int SIDEBAR_W = 106;
-    private static final int FOOTER_H = 20;
-    private static final int RESIZE_GRIP = 12;
+    private static final int HEADER_H = 40;
+    private static final int SIDEBAR_W = 104;
 
     private final Screen parent;
     private ModuleCategory selectedCategory = null;
@@ -47,21 +42,11 @@ public final class OptimizerScreen extends Screen {
     private String searchQuery = "";
     private boolean searchFocused = false;
 
-    // Floating Window Bounds
+    // Auto-Adapted Window Bounds
     private int winX;
     private int winY;
     private int winW;
     private int winH;
-
-    // Drag & Resize
-    private boolean draggingWindow = false;
-    private int dragOffsetX = 0;
-    private int dragOffsetY = 0;
-    private boolean resizingWindow = false;
-    private int resizeStartW = 0;
-    private int resizeStartH = 0;
-    private double resizeStartMX = 0;
-    private double resizeStartMY = 0;
 
     // Settings Drawer Controls
     private ModuleSetting.IntSliderSetting activeDraggingSlider = null;
@@ -81,29 +66,23 @@ public final class OptimizerScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        OptimizerConfig cfg = OptimizerConfig.getInstance();
-
-        // Default to a generous wide dashboard so 4 columns fit comfortably on normal GUI scales
-        int defaultW = Math.min(620, this.width - 20);
-        int defaultH = Math.min(340, this.height - 20);
-        int minW = Math.min(340, this.width - 12);
-        int minH = Math.min(210, this.height - 12);
-
-        int targetW = cfg.getWindowWidth() <= 420 ? defaultW : cfg.getWindowWidth();
-        int targetH = cfg.getWindowHeight() <= 270 ? defaultH : cfg.getWindowHeight();
-
-        this.winW = MathHelper.clamp(targetW, minW, Math.max(minW, this.width - 12));
-        this.winH = MathHelper.clamp(targetH, minH, Math.max(minH, this.height - 12));
-
-        if (cfg.getWindowX() < 0 || cfg.getWindowY() < 0) {
-            this.winX = (this.width - this.winW) / 2;
-            this.winY = (this.height - this.winH) / 2;
-        } else {
-            this.winX = MathHelper.clamp(cfg.getWindowX(), 4, Math.max(4, this.width - this.winW - 4));
-            this.winY = MathHelper.clamp(cfg.getWindowY(), 4, Math.max(4, this.height - this.winH - 4));
-        }
-
+        computeAutoScreenBounds();
         rebuildModuleList();
+    }
+
+    /**
+     * Automatically detects the current phone/PC scaled screen dimensions
+     * and sizes + centers the ClickGUI proportionally.
+     */
+    private void computeAutoScreenBounds() {
+        int marginX = Math.max(8, Math.round(this.width * 0.035f));
+        int marginY = Math.max(8, Math.round(this.height * 0.045f));
+
+        this.winW = Math.min(720, Math.max(300, this.width - (marginX * 2)));
+        this.winH = Math.min(420, Math.max(190, this.height - (marginY * 2)));
+
+        this.winX = (this.width - this.winW) / 2;
+        this.winY = (this.height - this.winH) / 2;
     }
 
     private void rebuildModuleList() {
@@ -135,7 +114,7 @@ public final class OptimizerScreen extends Screen {
         if (this.moduleList == null) return;
         int gridX = winX + SIDEBAR_W + 2;
         int gridY = winY + HEADER_H + 2;
-        int gridH = Math.max(60, winH - HEADER_H - FOOTER_H - 4);
+        int gridH = Math.max(60, winH - HEADER_H - 4);
         int fullGridW = winW - SIDEBAR_W - 4;
         int gridW = (activeSettingsModule != null) ? Math.max(150, fullGridW - 185) : fullGridW;
         this.moduleList.setDimensions(gridX, gridY, gridW, gridH);
@@ -143,13 +122,14 @@ public final class OptimizerScreen extends Screen {
 
     @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Keep the live Minecraft world visible behind the dashboard window, just like the screenshot
+        // Transparent in-game background
         context.fill(0, 0, this.width, this.height, 0x26000000);
     }
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         float deltaSeconds = Math.min(0.1f, delta / 20.0f);
+        computeAutoScreenBounds();
         updateGridBounds();
         this.renderBackground(ctx, mouseX, mouseY, delta);
 
@@ -158,13 +138,13 @@ public final class OptimizerScreen extends Screen {
         ctx.fill(winX - 1, winY - 1, winX + winW + 1, winY + winH + 1, 0xFF22252E);
         ctx.fill(winX, winY, winX + winW, winY + winH, 0xF60E1015);
 
-        // 2. Top Header Bar
+        // 2. Top Header Bar (Clean Title Only - No P Logo)
         renderTopHeader(ctx, mouseX, mouseY);
 
-        // 3. Left Sidebar
+        // 3. Left Sidebar (No Connected/Version text)
         renderLeftSidebar(ctx, mouseX, mouseY);
 
-        // 4. Center Content Area (Either 4-Column Module Card Grid OR Profile Quick Actions)
+        // 4. Center Content Area
         if (profileTabActive) {
             renderProfileView(ctx, mouseX, mouseY);
         } else {
@@ -175,47 +155,27 @@ public final class OptimizerScreen extends Screen {
                 renderRightSettingsPanel(ctx, mouseX, mouseY);
             }
         }
-
-        // 5. Bottom Status Bar
-        renderBottomStatusBar(ctx);
     }
 
     private void renderTopHeader(DrawContext ctx, int mouseX, int mouseY) {
         ctx.fill(winX, winY, winX + winW, winY + HEADER_H, 0xFF0C0E12);
         ctx.fill(winX, winY + HEADER_H, winX + winW, winY + HEADER_H + 1, 0xFF20232B);
 
-        // Stylized "P / C" Emblem with Red Lightning Slash on the Left
-        int logoX = winX + 12;
-        int logoY = winY + 8;
-        // White bold top arch
-        ctx.fill(logoX + 2, logoY, logoX + 18, logoY + 4, 0xFFFFFFFF);
-        ctx.fill(logoX + 14, logoY + 4, logoX + 19, logoY + 11, 0xFFFFFFFF);
-        ctx.fill(logoX + 6, logoY + 9, logoX + 17, logoY + 13, 0xFFFFFFFF);
-        // Red diagonal lightning tail
-        ctx.fill(logoX + 2, logoY + 5, logoX + 7, logoY + 16, 0xFFFF2E1F);
-        ctx.fill(logoX, logoY + 16, logoX + 5, logoY + 23, 0xFFFF2E1F);
-
-        // Brand Titles: "CPVP_CLIENT" & "MODS & HUD MANAGER"
-        ctx.drawTextWithShadow(this.textRenderer, "CPVP", logoX + 25, logoY + 2, 0xFFFFFFFF);
+        // Clean Brand Title on the Left (No Logo)
+        int titleX = winX + 12;
+        int titleY = winY + 9;
+        ctx.drawTextWithShadow(this.textRenderer, "CPVP", titleX, titleY, 0xFFFFFFFF);
         int cpvpW = this.textRenderer.getWidth("CPVP");
-        ctx.drawTextWithShadow(this.textRenderer, "_OPTIMIZER", logoX + 25 + cpvpW, logoY + 2, 0xFFFF3B1D);
-        ctx.drawText(this.textRenderer, "MODS & HUD MANAGER", logoX + 25, logoY + 14, 0xFF8E96A8, false);
+        ctx.drawTextWithShadow(this.textRenderer, "_OPTIMIZER", titleX + cpvpW, titleY, 0xFFFF3B1D);
+        ctx.drawText(this.textRenderer, "MODS & HUD MANAGER", titleX, titleY + 12, 0xFF8E96A8, false);
 
-        // Right-side Controls: [ SETTINGS ] Button + [ Search modules... 🔍 ] + 3 Grid Dots
+        // Right-side Controls: [ SETTINGS ] Button + [ Search modules... 🔍 ]
         int rightEdge = winX + winW - 12;
 
-        // Three small decorative grid squares on far right
-        for (int i = 0; i < 3; i++) {
-            int gx = rightEdge - 24 + (i * 8);
-            int gy = winY + 18;
-            ctx.fill(gx, gy, gx + 5, gy + 5, 0xFF262A34);
-            ctx.fill(gx + 1, gy + 1, gx + 4, gy + 4, 0xFF0E1015);
-        }
-
         // Search Box ("Search modules...")
-        int searchW = Math.min(145, Math.max(85, winW / 4));
-        int searchX = rightEdge - 32 - searchW;
-        int searchY = winY + 10;
+        int searchW = Math.min(155, Math.max(90, winW / 4));
+        int searchX = rightEdge - searchW;
+        int searchY = winY + 9;
         int searchH = 22;
 
         int searchBorder = searchFocused ? 0xFFFF4B2B : 0xFF252832;
@@ -241,7 +201,7 @@ public final class OptimizerScreen extends Screen {
         // [ SETTINGS ] Button to the left of Search Box
         int setBtnW = 76;
         int setBtnX = searchX - setBtnW - 8;
-        int setBtnY = winY + 10;
+        int setBtnY = winY + 9;
         boolean setHover = ModuleButton.isMouseOver(mouseX, mouseY, setBtnX, setBtnY, setBtnW, 22);
 
         ctx.fill(setBtnX, setBtnY, setBtnX + setBtnW, setBtnY + 22, setHover ? 0xFFFF4B2B : 0xFF282C37);
@@ -262,7 +222,7 @@ public final class OptimizerScreen extends Screen {
 
     private void renderLeftSidebar(DrawContext ctx, int mouseX, int mouseY) {
         int sideTop = winY + HEADER_H + 1;
-        int sideBottom = winY + winH - FOOTER_H;
+        int sideBottom = winY + winH;
 
         ctx.fill(winX, sideTop, winX + SIDEBAR_W, sideBottom, 0xFF0C0E12);
         ctx.fill(winX + SIDEBAR_W, sideTop, winX + SIDEBAR_W + 1, sideBottom, 0xFF20232B);
@@ -270,7 +230,7 @@ public final class OptimizerScreen extends Screen {
         int btnX = winX + 7;
         int btnW = SIDEBAR_W - 14;
 
-        // 1. DASHBOARD Tab (with 4-square grid icon & red-orange gradient when active)
+        // 1. DASHBOARD Tab
         int dashY = sideTop + 10;
         if (!profileTabActive && selectedCategory == null) {
             ModuleButton.drawHorizontalGradient(ctx, btnX, dashY, btnW, 24, 0xFF991B1B, 0xFFDC2626);
@@ -288,17 +248,16 @@ public final class OptimizerScreen extends Screen {
         } else if (ModuleButton.isMouseOver(mouseX, mouseY, btnX, profY, btnW, 24)) {
             ctx.fill(btnX, profY, btnX + btnW, profY + 24, 0xFF181B22);
         }
-        // Profile icon
         ctx.fill(btnX + 8, profY + 5, btnX + 14, profY + 11, 0xFFCBD5E1);
         ctx.fill(btnX + 6, profY + 13, btnX + 16, profY + 17, 0xFFCBD5E1);
         ctx.drawText(this.textRenderer, "PROFILE", btnX + 21, profY + 8,
                 profileTabActive ? 0xFFFFFFFF : 0xFF94A3B8, false);
         ctx.fill(btnX + 4, profY + 22, btnX + btnW - 4, profY + 23, 0xFF20232B);
 
-        // 3. Compact Category Filters under Profile
+        // 3. Category Filters
         int catY = profY + 30;
         for (ModuleCategory cat : ModuleCategory.values()) {
-            if (catY + 16 > sideBottom - 36) break;
+            if (catY + 16 > sideBottom - 8) break;
             boolean isCatSelected = (!profileTabActive && selectedCategory == cat);
             boolean hovered = ModuleButton.isMouseOver(mouseX, mouseY, btnX, catY, btnW, 15);
             if (isCatSelected) {
@@ -309,14 +268,8 @@ public final class OptimizerScreen extends Screen {
             }
             ctx.drawText(this.textRenderer, cat.getDisplayName().toUpperCase(Locale.ROOT),
                     btnX + 8, catY + 3, isCatSelected ? 0xFFFFFFFF : 0xFF788296, false);
-            catY += 16;
+            catY += 17;
         }
-
-        // 4. Bottom Left Connection & Version Indicator (Exactly like screenshot)
-        int connY = sideBottom - 30;
-        ctx.fill(winX + 10, connY + 2, winX + 14, connY + 6, 0xFFFF3B1D);
-        ctx.drawText(this.textRenderer, "CONNECTED", winX + 18, connY, 0xFFFF3B1D, false);
-        ctx.drawText(this.textRenderer, "VERSION 1.0.0", winX + 10, connY + 12, 0xFF788296, false);
     }
 
     private void drawFourSquareIcon(DrawContext ctx, int x, int y, int color) {
@@ -333,19 +286,20 @@ public final class OptimizerScreen extends Screen {
 
         ctx.drawTextWithShadow(this.textRenderer, "OPTIMIZATION PROFILES & GLOBAL CONTROLS", areaX, areaY, 0xFFFFFFFF);
 
-        drawProfileActionCard(ctx, areaX, areaY + 20, 210, 44,
+        int cardW = Math.min(210, (winW - SIDEBAR_W - 44) / 2);
+        drawProfileActionCard(ctx, areaX, areaY + 20, cardW, 44,
                 "Maximum Responsiveness", "Zero-delay Block, Anchor, Glowstone, Hotbar & XP",
                 !cfg.isSafeMode() && cfg.isMasterEnabled(), mouseX, mouseY);
 
-        drawProfileActionCard(ctx, areaX + 222, areaY + 20, 210, 44,
+        drawProfileActionCard(ctx, areaX + cardW + 12, areaY + 20, cardW, 44,
                 "Safe Mode (Fallback)", "Disables all active hooks safely",
                 cfg.isSafeMode(), mouseX, mouseY);
 
-        drawProfileActionCard(ctx, areaX, areaY + 74, 210, 44,
+        drawProfileActionCard(ctx, areaX, areaY + 74, cardW, 44,
                 "UI Smooth Animations", "Toggle smooth card & scroll transitions",
                 cfg.isUiAnimationsEnabled(), mouseX, mouseY);
 
-        drawProfileActionCard(ctx, areaX + 222, areaY + 74, 210, 44,
+        drawProfileActionCard(ctx, areaX + cardW + 12, areaY + 74, cardW, 44,
                 "Reset All Defaults", "Restore all 15 modules to factory settings",
                 false, mouseX, mouseY);
     }
@@ -357,7 +311,7 @@ public final class OptimizerScreen extends Screen {
         ctx.fill(x, y, x + 10, y + 2, 0xFFFF3B1D);
         ctx.fill(x, y, x + 2, y + 10, 0xFFFF3B1D);
 
-        ctx.drawTextWithShadow(this.textRenderer, title, x + 10, y + 8, 0xFFFFFFFF);
+        ctx.drawTextWithShadow(this.textRenderer, this.textRenderer.trimToWidth(title, w - 16), x + 10, y + 8, 0xFFFFFFFF);
         ctx.drawText(this.textRenderer, this.textRenderer.trimToWidth(sub, w - 20), x + 10, y + 20, 0xFF8E96A8, false);
 
         String badge = active ? "ACTIVE" : "APPLY";
@@ -376,17 +330,16 @@ public final class OptimizerScreen extends Screen {
         int panelW = 180;
         int panelX = winX + winW - panelW - 4;
         int panelY = winY + HEADER_H + 4;
-        int panelH = Math.max(60, winH - HEADER_H - FOOTER_H - 8);
+        int panelH = Math.max(60, winH - HEADER_H - 8);
 
         ctx.fill(panelX - 1, panelY - 1, panelX + panelW + 1, panelY + panelH + 1, 0xFFFF3B1D);
         ctx.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xF812141A);
 
         ctx.enableScissor(panelX, panelY, panelX + panelW, panelY + panelH);
 
-        String title = this.textRenderer.trimToWidth(activeSettingsModule.getDisplayName(), panelW - 48);
+        String title = this.textRenderer.trimToWidth(activeSettingsModule.getDisplayName(), panelW - 28);
         ctx.drawTextWithShadow(this.textRenderer, title, panelX + 8, panelY + 8, 0xFFFFFFFF);
 
-        // Close [X] & [Reset] in drawer header
         int closeX = panelX + panelW - 18;
         ctx.fill(closeX, panelY + 6, closeX + 12, panelY + 18, 0xFF252832);
         ctx.drawTextWithShadow(this.textRenderer, "×", closeX + 3, panelY + 8, 0xFFFF4B2B);
@@ -448,39 +401,12 @@ public final class OptimizerScreen extends Screen {
             }
         }
 
-        // Bottom Reset Defaults button inside drawer
         int resetY = panelY + panelH - 20;
         ctx.fill(ctrlX, resetY, ctrlX + ctrlW, resetY + 15, 0xFF252832);
         String rLabel = "RESET DEFAULTS";
         ctx.drawText(this.textRenderer, rLabel, ctrlX + (ctrlW - this.textRenderer.getWidth(rLabel)) / 2, resetY + 4, 0xFFCBD5E1, false);
 
         ctx.disableScissor();
-    }
-
-    private void renderBottomStatusBar(DrawContext ctx) {
-        int footY = winY + winH - FOOTER_H;
-        ctx.fill(winX, footY, winX + winW, winY + winH, 0xFF0A0C10);
-        ctx.fill(winX, footY, winX + winW, footY + 1, 0xFF20232B);
-
-        // Left: STATUS: CONNECTED
-        ctx.drawText(this.textRenderer, "STATUS: ", winX + 10, footY + 6, 0xFF8E96A8, false);
-        int stW = this.textRenderer.getWidth("STATUS: ");
-        boolean serverSynced = ServerPerformanceManager.getInstance().isServerComponentActive();
-        ctx.drawText(this.textRenderer, serverSynced ? "SERVER ACTIVE" : "CONNECTED", winX + 10 + stW, footY + 6, 0xFFFF3B1D, false);
-
-        // Center: CPVP OPTIMIZER
-        String centerBrand = "CPVP OPTIMIZER";
-        ctx.drawText(this.textRenderer, centerBrand,
-                winX + (winW - this.textRenderer.getWidth(centerBrand)) / 2, footY + 6, 0xFF8E96A8, false);
-
-        // Right: VERSION: 1.0.0 + Resize Grip
-        String verLabel = "VERSION: ";
-        String verNum = "1.0.0";
-        int rightX = winX + winW - 68;
-        ctx.drawText(this.textRenderer, verLabel, rightX, footY + 6, 0xFF8E96A8, false);
-        ctx.drawText(this.textRenderer, verNum, rightX + this.textRenderer.getWidth(verLabel), footY + 6, 0xFFFF3B1D, false);
-
-        ctx.drawText(this.textRenderer, "◢", winX + winW - 9, winY + winH - 10, 0xFF687082, false);
     }
 
     @Override
@@ -492,23 +418,12 @@ public final class OptimizerScreen extends Screen {
         this.searchFocused = false;
         this.focusedTextSetting = null;
 
-        // 1. Bottom-Right Resize Grip
-        if (button == 0 && mx >= winX + winW - RESIZE_GRIP && mx <= winX + winW + 2
-                && my >= winY + winH - RESIZE_GRIP && my <= winY + winH + 2) {
-            this.resizingWindow = true;
-            this.resizeStartW = this.winW;
-            this.resizeStartH = this.winH;
-            this.resizeStartMX = mx;
-            this.resizeStartMY = my;
-            return true;
-        }
-
-        // 2. Top Header Interactions (Search Box, SETTINGS button, or Window Drag)
+        // 1. Top Header Interactions (Search Box & SETTINGS button)
         if (mx >= winX && mx <= winX + winW && my >= winY && my <= winY + HEADER_H) {
             int rightEdge = winX + winW - 12;
-            int searchW = Math.min(145, Math.max(85, winW / 4));
-            int searchX = rightEdge - 32 - searchW;
-            int searchY = winY + 10;
+            int searchW = Math.min(155, Math.max(90, winW / 4));
+            int searchX = rightEdge - searchW;
+            int searchY = winY + 9;
 
             if (ModuleButton.isMouseOver(mx, my, searchX, searchY, searchW, 22)) {
                 playClickSound();
@@ -527,18 +442,12 @@ public final class OptimizerScreen extends Screen {
                 this.profileTabActive = !this.profileTabActive;
                 return true;
             }
-
-            if (button == 0) {
-                this.draggingWindow = true;
-                this.dragOffsetX = (int) mx - this.winX;
-                this.dragOffsetY = (int) my - this.winY;
-                return true;
-            }
+            return true;
         }
 
-        // 3. Left Sidebar Clicks (DASHBOARD, PROFILE, Category Filters)
+        // 2. Left Sidebar Clicks (DASHBOARD, PROFILE, Category Filters)
         int sideTop = winY + HEADER_H + 1;
-        int sideBottom = winY + winH - FOOTER_H;
+        int sideBottom = winY + winH;
         if (mx >= winX && mx <= winX + SIDEBAR_W && my >= sideTop && my <= sideBottom) {
             int btnX = winX + 7;
             int btnW = SIDEBAR_W - 14;
@@ -561,7 +470,7 @@ public final class OptimizerScreen extends Screen {
 
             int catY = profY + 30;
             for (ModuleCategory cat : ModuleCategory.values()) {
-                if (catY + 16 > sideBottom - 36) break;
+                if (catY + 16 > sideBottom - 8) break;
                 if (ModuleButton.isMouseOver(mx, my, btnX, catY, btnW, 15)) {
                     playClickSound();
                     this.profileTabActive = false;
@@ -570,33 +479,34 @@ public final class OptimizerScreen extends Screen {
                     rebuildModuleList();
                     return true;
                 }
-                catY += 16;
+                catY += 17;
             }
             return true;
         }
 
-        // 4. Profile View Clicks
+        // 3. Profile View Clicks
         if (profileTabActive) {
             int areaX = winX + SIDEBAR_W + 16;
             int areaY = winY + HEADER_H + 16;
+            int cardW = Math.min(210, (winW - SIDEBAR_W - 44) / 2);
             OptimizerConfig cfg = OptimizerConfig.getInstance();
 
-            if (ModuleButton.isMouseOver(mx, my, areaX, areaY + 20, 210, 44)) {
+            if (ModuleButton.isMouseOver(mx, my, areaX, areaY + 20, cardW, 44)) {
                 playClickSound();
                 cfg.applyMaximumResponsivenessProfile();
                 return true;
             }
-            if (ModuleButton.isMouseOver(mx, my, areaX + 222, areaY + 20, 210, 44)) {
+            if (ModuleButton.isMouseOver(mx, my, areaX + cardW + 12, areaY + 20, cardW, 44)) {
                 playClickSound();
                 cfg.setSafeMode(!cfg.isSafeMode());
                 return true;
             }
-            if (ModuleButton.isMouseOver(mx, my, areaX, areaY + 74, 210, 44)) {
+            if (ModuleButton.isMouseOver(mx, my, areaX, areaY + 74, cardW, 44)) {
                 playClickSound();
                 cfg.setUiAnimationsEnabled(!cfg.isUiAnimationsEnabled());
                 return true;
             }
-            if (ModuleButton.isMouseOver(mx, my, areaX + 222, areaY + 74, 210, 44)) {
+            if (ModuleButton.isMouseOver(mx, my, areaX + cardW + 12, areaY + 74, cardW, 44)) {
                 playClickSound();
                 cfg.resetAllToDefaults();
                 return true;
@@ -604,12 +514,12 @@ public final class OptimizerScreen extends Screen {
             return true;
         }
 
-        // 5. Right Settings Panel Clicks
+        // 4. Right Settings Panel Clicks
         if (this.activeSettingsModule != null && handleRightSettingsClick(mx, my, button)) {
             return true;
         }
 
-        // 6. Module Card Grid Clicks
+        // 5. Module Card Grid Clicks
         if (this.moduleList != null && this.moduleList.mouseClicked(mx, my, button)) {
             this.savedScrollOffset = this.moduleList.getScrollAmount();
             return true;
@@ -622,7 +532,7 @@ public final class OptimizerScreen extends Screen {
         int panelW = 180;
         int panelX = winX + winW - panelW - 4;
         int panelY = winY + HEADER_H + 4;
-        int panelH = Math.max(60, winH - HEADER_H - FOOTER_H - 8);
+        int panelH = Math.max(60, winH - HEADER_H - 8);
 
         if (!ModuleButton.isMouseOver(mx, my, panelX, panelY, panelW, panelH)) {
             return false;
@@ -698,27 +608,6 @@ public final class OptimizerScreen extends Screen {
         double mx = click.x();
         double my = click.y();
 
-        if (this.draggingWindow) {
-            this.winX = MathHelper.clamp((int) mx - this.dragOffsetX, 2, Math.max(2, this.width - this.winW - 2));
-            this.winY = MathHelper.clamp((int) my - this.dragOffsetY, 2, Math.max(2, this.height - this.winH - 2));
-            OptimizerConfig.getInstance().saveWindowBounds(this.winX, this.winY, this.winW, this.winH);
-            updateGridBounds();
-            return true;
-        }
-
-        if (this.resizingWindow) {
-            int minW = Math.min(340, this.width - 12);
-            int minH = Math.min(210, this.height - 12);
-            int maxW = Math.max(minW, this.width - this.winX - 4);
-            int maxH = Math.max(minH, this.height - this.winY - 4);
-
-            this.winW = MathHelper.clamp(this.resizeStartW + (int) (mx - this.resizeStartMX), minW, maxW);
-            this.winH = MathHelper.clamp(this.resizeStartH + (int) (my - this.resizeStartMY), minH, maxH);
-            OptimizerConfig.getInstance().saveWindowBounds(this.winX, this.winY, this.winW, this.winH);
-            updateGridBounds();
-            return true;
-        }
-
         if (this.activeDraggingSlider != null && this.activeSettingsModule != null) {
             int panelW = 180;
             int panelX = winX + winW - panelW - 4;
@@ -736,8 +625,6 @@ public final class OptimizerScreen extends Screen {
 
     @Override
     public boolean mouseReleased(Click click) {
-        this.draggingWindow = false;
-        this.resizingWindow = false;
         this.activeDraggingSlider = null;
         if (this.moduleList != null && this.moduleList.mouseReleased(click.x(), click.y(), click.button())) {
             return true;
@@ -831,7 +718,6 @@ public final class OptimizerScreen extends Screen {
 
     @Override
     public void close() {
-        OptimizerConfig.getInstance().saveWindowBounds(this.winX, this.winY, this.winW, this.winH);
         OptimizerConfig.getInstance().save();
         if (this.client != null) {
             this.client.setScreen(this.parent);
