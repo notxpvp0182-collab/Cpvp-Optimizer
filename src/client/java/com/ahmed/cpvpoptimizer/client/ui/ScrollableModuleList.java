@@ -10,11 +10,11 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Multi-Column Card Grid matching the PYES_CLIENT dashboard layout (up to 4 cards per row).
+ * Compact vertical module row list inside the Center Frosted-Glass Panel (Screenshot 4).
  */
 public final class ScrollableModuleList {
-    private static final int CARD_HEIGHT = 68;
-    private static final int GAP = 8;
+    private static final int ROW_H = PremiumTheme.ROW_HEIGHT;
+    private static final int GAP = PremiumTheme.ROW_GAP;
 
     private final List<ModuleButton> buttons = new ArrayList<>();
     private final Scrollbar scrollbar = new Scrollbar();
@@ -43,28 +43,13 @@ public final class ScrollableModuleList {
         this.y = y;
         this.width = width;
         this.height = height;
-        this.scrollbar.setBounds(x + width - 5, y + 4, 3, Math.max(0, height - 8));
+        this.scrollbar.setBounds(x + width - 4, y + 2, 2, Math.max(0, height - 4));
         clampScroll();
-    }
-
-    public int getColumnCount() {
-        int usableW = width - 16;
-        if (usableW >= 460) return 4;
-        if (usableW >= 330) return 3;
-        if (usableW >= 210) return 2;
-        return 1;
-    }
-
-    public int getCardWidth(int cols) {
-        int usableW = width - 16 - (cols - 1) * GAP;
-        return Math.max(95, usableW / cols);
     }
 
     public int getContentHeight() {
         if (buttons.isEmpty()) return 0;
-        int cols = getColumnCount();
-        int rows = (buttons.size() + cols - 1) / cols;
-        return rows * (CARD_HEIGHT + GAP) + 8;
+        return buttons.size() * (ROW_H + GAP) + 4;
     }
 
     public int getMaxScroll() {
@@ -90,28 +75,21 @@ public final class ScrollableModuleList {
         clampScroll();
         this.scrollAmount = UIAnimations.smoothScroll(this.scrollAmount, this.targetScrollAmount, deltaSeconds);
 
-        int cols = getColumnCount();
-        int cardW = getCardWidth(cols);
-        int startX = x + 6;
-        int startY = y + 6 - (int) Math.round(scrollAmount);
+        int rowW = width - (scrollbar.isVisible(getContentHeight()) ? 8 : 2);
+        int rowX = x + 1;
+        int curY = y + 2 - (int) Math.round(scrollAmount);
         boolean insideViewport = mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
 
         context.enableScissor(x, y, x + width, y + height);
-        for (int i = 0; i < buttons.size(); i++) {
-            int col = i % cols;
-            int row = i / cols;
-            int cardX = startX + col * (cardW + GAP);
-            int cardY = startY + row * (CARD_HEIGHT + GAP);
-
-            if (cardY + CARD_HEIGHT >= y && cardY <= y + height) {
-                ModuleButton btn = buttons.get(i);
-                btn.renderCard(
+        for (ModuleButton btn : buttons) {
+            if (curY + ROW_H >= y && curY <= y + height) {
+                btn.renderRow(
                         context,
                         textRenderer,
-                        cardX,
-                        cardY,
-                        cardW,
-                        CARD_HEIGHT,
+                        rowX,
+                        curY,
+                        rowW,
+                        ROW_H,
                         mouseX,
                         mouseY,
                         insideViewport && !scrollbar.isDragging(),
@@ -119,6 +97,7 @@ public final class ScrollableModuleList {
                         deltaSeconds
                 );
             }
+            curY += ROW_H + GAP;
         }
         context.disableScissor();
 
@@ -133,22 +112,17 @@ public final class ScrollableModuleList {
             return true;
         }
 
-        int cols = getColumnCount();
-        int cardW = getCardWidth(cols);
-        int startX = x + 6;
-        int startY = y + 6 - (int) Math.round(scrollAmount);
+        int rowW = width - (scrollbar.isVisible(getContentHeight()) ? 8 : 2);
+        int rowX = x + 1;
+        int curY = y + 2 - (int) Math.round(scrollAmount);
 
-        for (int i = 0; i < buttons.size(); i++) {
-            int col = i % cols;
-            int row = i / cols;
-            int cardX = startX + col * (cardW + GAP);
-            int cardY = startY + row * (CARD_HEIGHT + GAP);
-
-            if (cardY + CARD_HEIGHT >= y && cardY <= y + height) {
-                if (buttons.get(i).mouseClicked(mouseX, mouseY, button, cardX, cardY, cardW, CARD_HEIGHT)) {
+        for (ModuleButton btn : buttons) {
+            if (curY + ROW_H >= y && curY <= y + height) {
+                if (btn.mouseClicked(mouseX, mouseY, button, rowX, curY, rowW, ROW_H)) {
                     return true;
                 }
             }
+            curY += ROW_H + GAP;
         }
         return false;
     }
@@ -169,7 +143,7 @@ public final class ScrollableModuleList {
         if (mouseX < x || mouseX > x + width || mouseY < y || mouseY > y + height) {
             return false;
         }
-        int step = (CARD_HEIGHT + GAP) / 2;
+        int step = ROW_H + GAP;
         this.targetScrollAmount = MathHelper.clamp(this.targetScrollAmount - verticalAmount * step, 0.0, getMaxScroll());
         return true;
     }

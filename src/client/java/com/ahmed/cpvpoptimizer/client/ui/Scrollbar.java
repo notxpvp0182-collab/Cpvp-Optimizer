@@ -6,7 +6,7 @@ import net.minecraft.util.math.MathHelper;
 public final class Scrollbar {
     private int x;
     private int y;
-    private int width = 4;
+    private int width = 2;
     private int height;
     private boolean dragging = false;
     private double dragGrabOffset = 0.0;
@@ -25,7 +25,7 @@ public final class Scrollbar {
     public int getThumbHeight(int contentHeight) {
         if (contentHeight <= height || contentHeight <= 0) return height;
         int thumb = (int) ((float) (height * height) / (float) contentHeight);
-        return MathHelper.clamp(thumb, 24, Math.max(24, height - 6));
+        return MathHelper.clamp(thumb, 18, Math.max(18, height - 4));
     }
 
     public int getThumbY(double scrollAmount, int maxScroll, int contentHeight) {
@@ -43,8 +43,8 @@ public final class Scrollbar {
         int thumbY = getThumbY(scrollAmount, maxScroll, contentHeight);
         boolean hovered = isMouseOverTrack(mouseX, mouseY);
 
-        context.fill(x, y, x + width, y + height, 0x660B0C10);
-        int thumbColor = (hovered || dragging) ? 0xFFFF6B2B : 0xCCFF3B1D;
+        context.fill(x, y, x + width, y + height, 0x22FFFFFF);
+        int thumbColor = (hovered || dragging) ? 0xAAFFFFFF : 0x55FFFFFF;
         context.fill(x, thumbY, x + width, thumbY + thumbHeight, thumbColor);
     }
 
@@ -83,7 +83,7 @@ public final class Scrollbar {
     }
 
     public boolean isMouseOverTrack(double mouseX, double mouseY) {
-        return mouseX >= x - 2 && mouseX <= x + width + 2 && mouseY >= y && mouseY <= y + height;
+        return mouseX >= x - 3 && mouseX <= x + width + 3 && mouseY >= y && mouseY <= y + height;
     }
 
     private void updateScrollFromMouse(double mouseY, int maxScroll, int contentHeight, ScrollConsumer scrollUpdater) {
